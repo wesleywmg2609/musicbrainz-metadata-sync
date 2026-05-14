@@ -1,0 +1,14 @@
+{
+  "name": "music-renamer",
+  "version": "0.1.0",
+  "description": "Desktop UI for previewing music file rename workflows.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electronmon ."
+  },
+  "devDependencies": {
+    "electron": "^42.0.1",
+    "electronmon": "^2.0.4"
+  }
+}
