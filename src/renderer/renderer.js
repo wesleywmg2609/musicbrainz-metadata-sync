@@ -12,22 +12,112 @@ const fileCount = document.querySelector("#fileCount");
 const fileTableBody = document.querySelector("#fileTableBody");
 
 const removableMetadataFields = [
-  { label: "COMMENT", value: "COMMENT" },
-  { label: "DESCRIPTION", value: "DESCRIPTION" },
-  { label: "ENCODER", value: "ENCODER" },
-  { label: "WEBSITE", value: "WEBSITE" },
-  { label: "URL", value: "URL" },
-  { label: "SOURCE", value: "SOURCE" },
-  { label: "ORGANIZATION", value: "ORGANIZATION" },
-  { label: "COPYRIGHT", value: "COPYRIGHT" },
-  { label: "PUBLISHER", value: "PUBLISHER" },
-  { label: "LABEL", value: "LABEL" }
-];
+  ["ALBUMSORT", "Album sort"],
+  ["ALBUMARTISTSORT", "Album artist sort"],
+  ["BARCODE", "Barcode"],
+  ["CATALOGNUMBER", "Catalog number"],
+  ["COMMENT", "Comment"],
+  ["COMPILATION", "Compilation"],
+  ["COMPOSER", "Composer"],
+  ["CONDUCTOR", "Conductor"],
+  ["COPYRIGHT", "Copyright"],
+  ["DESCRIPTION", "Description"],
+  ["DISCTOTAL", "Disc total"],
+  ["DISCNUMBER", "Disc number"],
+  ["ENCODEDBY", "Encoded by"],
+  ["ENCODER", "Encoder"],
+  ["GENRE", "Genre"],
+  ["ISRC", "ISRC"],
+  ["LABEL", "Label"],
+  ["LYRICIST", "Lyricist"],
+  ["MUSICBRAINZ_ALBUMARTISTID", "MusicBrainz album artist ID"],
+  ["MUSICBRAINZ_ALBUMID", "MusicBrainz album ID"],
+  ["MUSICBRAINZ_ARTISTID", "MusicBrainz artist ID"],
+  ["MUSICBRAINZ_RELEASEGROUPID", "MusicBrainz release group ID"],
+  ["MUSICBRAINZ_TRACKID", "MusicBrainz track ID"],
+  ["MUSICBRAINZ_WORKID", "MusicBrainz work ID"],
+  ["ORGANIZATION", "Organization"],
+  ["PUBLISHER", "Publisher"],
+  ["REPLAYGAIN_ALBUM_GAIN", "ReplayGain album gain"],
+  ["REPLAYGAIN_ALBUM_PEAK", "ReplayGain album peak"],
+  ["REPLAYGAIN_TRACK_GAIN", "ReplayGain track gain"],
+  ["REPLAYGAIN_TRACK_PEAK", "ReplayGain track peak"],
+  ["SOURCE", "Source"],
+  ["TITLESORT", "Title sort"],
+  ["TOOL", "Tool"],
+  ["TRACKTOTAL", "Track total"],
+  ["TRACKNUMBER", "Track number"],
+  ["UPC", "UPC"],
+  ["URL", "URL"],
+  ["WEBSITE", "Website"]
+].map(([value, label]) => ({
+  value,
+  label: label.toUpperCase()
+}));
+
+const metadataLabelOverrides = new Map(
+  removableMetadataFields.map((field) => [
+    normalizeMetadataKey(field.value),
+    field.label
+  ])
+);
+
+function formatMetadataLabel(key) {
+  const normalizedKey = normalizeMetadataKey(key);
+
+  if (metadataLabelOverrides.has(normalizedKey)) {
+    return metadataLabelOverrides.get(normalizedKey);
+  }
+
+  return String(key || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
 
 let selectedFiles = [];
 let selectedFolderPath = "";
 let spotifyAlbum = null;
 let selectedRemoveMetadataFields = new Set();
+let activeMetadataTooltip = null;
+let lastPointerPosition = null;
+
+function hideActiveMetadataTooltip() {
+  if (!activeMetadataTooltip) {
+    return;
+  }
+
+  activeMetadataTooltip.element.classList.remove("is-visible");
+  activeMetadataTooltip.element.remove();
+  activeMetadataTooltip = null;
+}
+
+function positionMetadataTooltip(tooltip, rect) {
+  const margin = 12;
+  const centeredTop = rect.top + (rect.height / 2) - (tooltip.offsetHeight / 2);
+  const maxTop = window.innerHeight - tooltip.offsetHeight - margin;
+  const top = Math.min(Math.max(margin, centeredTop), maxTop);
+  const left = Math.max(margin, rect.left - tooltip.offsetWidth - margin);
+
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+function isPointerOverElement(element) {
+  if (!lastPointerPosition) {
+    return false;
+  }
+
+  const rect = element.getBoundingClientRect();
+
+  return (
+    lastPointerPosition.x >= rect.left &&
+    lastPointerPosition.x <= rect.right &&
+    lastPointerPosition.y >= rect.top &&
+    lastPointerPosition.y <= rect.bottom
+  );
+}
 
 function openPreferences() {
   preferencesModal.hidden = false;
@@ -265,65 +355,7 @@ function isKeyMetadataTag(key) {
   return keyMetadataTags.has(normalizeMetadataKey(key));
 }
 
-function formatMetadataLabel(key) {
-  const labelOverrides = new Map([
-    ["barcode", "Barcode"],
-    ["catalognumber", "Catalog number"],
-    ["comment", "Comment"],
-    ["compilation", "Compilation"],
-    ["composer", "Composer"],
-    ["conductor", "Conductor"],
-    ["copyright", "Copyright"],
-    ["description", "Description"],
-    ["disctotal", "Disc total"],
-    ["discnumber", "Disc number"],
-    ["encodedby", "Encoded by"],
-    ["encoder", "Encoder"],
-    ["genre", "Genre"],
-    ["isrc", "ISRC"],
-    ["label", "Label"],
-    ["lyricist", "Lyricist"],
-    ["musicbrainzalbumartistid", "MusicBrainz album artist ID"],
-    ["musicbrainzalbumid", "MusicBrainz album ID"],
-    ["musicbrainzartistid", "MusicBrainz artist ID"],
-    ["musicbrainzreleasegroupid", "MusicBrainz release group ID"],
-    ["musicbrainztrackid", "MusicBrainz track ID"],
-    ["musicbrainzworkid", "MusicBrainz work ID"],
-    ["organization", "Organization"],
-    ["publisher", "Publisher"],
-    ["replaygainalbumgain", "ReplayGain album gain"],
-    ["replaygainalbumpeak", "ReplayGain album peak"],
-    ["replaygaintrackgain", "ReplayGain track gain"],
-    ["replaygaintrackpeak", "ReplayGain track peak"],
-    ["spotifyalbumid", "Spotify album ID"],
-    ["spotifyartistid", "Spotify artist ID"],
-    ["spotifytrackid", "Spotify track ID"],
-    ["titlesort", "Title sort"],
-    ["tracktotal", "Track total"],
-    ["tracknumber", "Track number"],
-    ["upc", "UPC"],
-    ["url", "URL"],
-    ["website", "Website"]
-  ]);
-  const normalizedKey = normalizeMetadataKey(key);
-
-  if (labelOverrides.has(normalizedKey)) {
-    return labelOverrides.get(normalizedKey).toUpperCase();
-  }
-
-  return String(key || "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
-    .toUpperCase();
-}
-
-function createMetadataTooltip(file) {
-  const wrapper = document.createElement("div");
-  const button = document.createElement("button");
-  const tooltip = document.createElement("div");
+function renderMetadataTooltipContent(tooltip, file) {
   const currentMetadata = file.metadata || {};
   const targetMetadata = file.spotifyMetadata || {};
   const keySection = createMetadataSection("PRIMARY METADATA");
@@ -339,20 +371,14 @@ function createMetadataTooltip(file) {
   ];
   const rawTags = getSortedRawTags(currentMetadata.rawTags).filter(([key]) => !isKeyMetadataTag(key));
 
-  wrapper.className = "metadata-popover";
-  button.className = "metadata-button";
-  button.type = "button";
-  button.setAttribute("aria-label", `View metadata for ${file.name}`);
-  button.textContent = "i";
-  tooltip.className = "metadata-tooltip";
-  tooltip.setAttribute("role", "tooltip");
+  tooltip.replaceChildren();
 
   keyRows.forEach(([label, currentValue, targetValue]) => {
     keySection.append(createMetadataLine(label, currentValue, file.spotifyMetadata ? targetValue : undefined, {
       blankEmpty: true
     }));
-  });  
-  
+  });
+
   tooltip.append(keySection);
 
   if (rawTags.length > 0) {
@@ -372,25 +398,41 @@ function createMetadataTooltip(file) {
 
     tooltip.append(otherSection);
   }
+}
+
+function createMetadataTooltip(file, fileIndex) {
+  const wrapper = document.createElement("div");
+  const button = document.createElement("button");
+  const tooltip = document.createElement("div");
+
+  wrapper.className = "metadata-popover";
+  button.className = "metadata-button";
+  button.type = "button";
+  button.setAttribute("aria-label", `View metadata for ${file.name}`);
+  button.textContent = "i";
+  tooltip.className = "metadata-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  renderMetadataTooltipContent(tooltip, file);
 
   function showTooltip() {
     const rect = button.getBoundingClientRect();
 
+    hideActiveMetadataTooltip();
     document.body.append(tooltip);
     tooltip.classList.add("is-visible");
-
-    const margin = 12;
-    const centeredTop = rect.top + (rect.height / 2) - (tooltip.offsetHeight / 2);
-    const maxTop = window.innerHeight - tooltip.offsetHeight - margin;
-    const top = Math.min(Math.max(margin, centeredTop), maxTop);
-    const left = Math.max(margin, rect.left - tooltip.offsetWidth - margin);
-
-    tooltip.style.left = `${left}px`;
-    tooltip.style.top = `${top}px`;
+    activeMetadataTooltip = {
+      element: tooltip,
+      fileIndex
+    };
+    positionMetadataTooltip(tooltip, rect);
   }
 
   function hideTooltip() {
-    tooltip.classList.remove("is-visible");
+    if (activeMetadataTooltip?.element === tooltip) {
+      hideActiveMetadataTooltip();
+      return;
+    }
+
     tooltip.remove();
   }
 
@@ -399,11 +441,22 @@ function createMetadataTooltip(file) {
   button.addEventListener("mouseleave", hideTooltip);
   button.addEventListener("blur", hideTooltip);
 
+  wrapper.showMetadataTooltip = showTooltip;
+  wrapper.isMetadataButtonHovered = () => isPointerOverElement(button);
   wrapper.append(button);
   return wrapper;
 }
 
-function renderFiles() {
+function renderFiles(options = {}) {
+  const tooltipIndexToRestore = options.restoreActiveTooltip
+    ? activeMetadataTooltip?.fileIndex
+    : null;
+  let tooltipToRestore = null;
+
+  if (!options.restoreActiveTooltip) {
+    hideActiveMetadataTooltip();
+  }
+
   fileCount.textContent = `${selectedFiles.length} ${selectedFiles.length === 1 ? "file" : "files"}`;
   removeMetadataCount.textContent = `${selectedRemoveMetadataFields.size} ${selectedRemoveMetadataFields.size === 1 ? "field" : "fields"} selected`;
   folderPreviewName.textContent = buildFolderName() || "Selected folder name stays unchanged until artist and album are set.";
@@ -436,14 +489,25 @@ function renderFiles() {
     targetFileName.textContent = buildPreviewName(file);
     targetFileLocation.textContent = buildTargetFolderPath();
     metadataCell.className = "metadata-cell";
-    metadataCell.append(createMetadataTooltip(file));
+    const metadataTooltip = createMetadataTooltip(file, index);
+    metadataCell.append(metadataTooltip);
 
     currentCell.append(currentFileName, currentFileLocation);
     targetCell.append(targetFileName, targetFileLocation);
 
     row.append(currentCell, targetCell, metadataCell);
     fileTableBody.append(row);
+
+    if (index === tooltipIndexToRestore && metadataTooltip.isMetadataButtonHovered()) {
+      tooltipToRestore = metadataTooltip;
+    }
   });
+
+  if (tooltipToRestore) {
+    tooltipToRestore.showMetadataTooltip();
+  } else if (options.restoreActiveTooltip) {
+    hideActiveMetadataTooltip();
+  }
 }
 
 chooseFolderButton.addEventListener("click", async () => {
@@ -525,7 +589,7 @@ fetchSpotifyButton.addEventListener("click", async () => {
     });
     applySpotifyMetadata(spotifyAlbum);
     spotifyStatus.textContent = `Loaded ${spotifyAlbum.tracks.length} Spotify tracks from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
-    renderFiles();
+    renderFiles({ restoreActiveTooltip: true });
   } catch (error) {
     spotifyStatus.textContent = error.message;
     window.alert(error.message);
@@ -547,6 +611,13 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !preferencesModal.hidden) {
     closePreferences();
   }
+});
+
+window.addEventListener("pointermove", (event) => {
+  lastPointerPosition = {
+    x: event.clientX,
+    y: event.clientY
+  };
 });
 
 window.musicMetadataSync.onOpenPreferences(openPreferences);
