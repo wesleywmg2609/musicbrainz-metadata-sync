@@ -1,8 +1,6 @@
 const chooseFolderButton = document.querySelector("#chooseFolderButton");
 const applyButton = document.querySelector("#applyButton");
 const folderLabel = document.querySelector("#folderLabel");
-const artistInput = document.querySelector("#artistInput");
-const albumInput = document.querySelector("#albumInput");
 const fetchSpotifyButton = document.querySelector("#fetchSpotifyButton");
 const spotifyStatus = document.querySelector("#spotifyStatus");
 const folderPreviewName = document.querySelector("#folderPreviewName");
@@ -60,8 +58,14 @@ function getParentFolderPath(folderPath) {
 }
 
 function buildFolderName() {
-  const artist = artistInput.value.trim();
-  const album = albumInput.value.trim();
+  const metadata = spotifyAlbum || selectedFiles.find(
+    (file) =>
+      file.metadata?.album &&
+      (file.metadata?.albumArtist || file.metadata?.artist)
+  )?.metadata;
+
+  const artist = metadata?.albumArtist || metadata?.artist;
+  const album = metadata?.album;
 
   if (!artist || !album) {
     return "";
@@ -82,7 +86,21 @@ function buildTargetFolderPath() {
 }
 
 function buildPreviewName(file) {
-  return file.name;
+  const metadata = file.spotifyMetadata;
+
+  if (!metadata?.title) {
+    return file.name;
+  }
+
+  const extension = file.extension || "";
+  const track = String(metadata.track || metadata.trackNumber || "").padStart(2, "0");
+  const title = cleanFileName(metadata.title);
+
+  if (!track || !title) {
+    return file.name;
+  }
+
+  return `${track}. ${title}${extension}`;
 }
 
 function getPreviewMetadata(file) {
@@ -441,7 +459,6 @@ chooseFolderButton.addEventListener("click", async () => {
       selectedFiles = result.files;
       spotifyAlbum = null;
       spotifyStatus.textContent = "Spotify metadata not loaded.";
-      fillSearchFieldsFromLocalMetadata(selectedFiles);
       renderRemoveMetadataOptions();
       renderFiles();
     }
@@ -490,17 +507,6 @@ function applySpotifyMetadata(albumData) {
   });
 }
 
-function fillSearchFieldsFromLocalMetadata(files) {
-  const metadata = files.find((file) => file.metadata?.album || file.metadata?.albumArtist || file.metadata?.artist)?.metadata;
-
-  if (!metadata) {
-    return;
-  }
-
-  artistInput.value = artistInput.value || metadata.albumArtist || metadata.artist || "";
-  albumInput.value = albumInput.value || metadata.album || "";
-}
-
 fetchSpotifyButton.addEventListener("click", async () => {
   fetchSpotifyButton.disabled = true;
   fetchSpotifyButton.textContent = "Fetching...";
@@ -514,12 +520,9 @@ fetchSpotifyButton.addEventListener("click", async () => {
     )?.metadata;
 
     spotifyAlbum = await window.musicMetadataSync.fetchSpotifyAlbum({
-      artist: metadata?.albumArtist || metadata?.artist || artistInput.value,
-      album: metadata?.album || albumInput.value
+      artist: metadata?.albumArtist || metadata?.artist,
+      album: metadata?.album
     });
-
-    artistInput.value = spotifyAlbum.albumArtist;
-    albumInput.value = spotifyAlbum.album;
     applySpotifyMetadata(spotifyAlbum);
     spotifyStatus.textContent = `Loaded ${spotifyAlbum.tracks.length} Spotify tracks from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
     renderFiles();
@@ -571,10 +574,6 @@ applyButton.addEventListener("click", async () => {
     applyButton.textContent = "Apply Changes";
     renderFiles();
   }
-});
-
-[artistInput, albumInput].forEach((input) => {
-  input.addEventListener("input", renderFiles);
 });
 
 renderRemoveMetadataOptions();

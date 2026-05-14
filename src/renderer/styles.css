@@ -111,7 +111,6 @@ h2 {
 
 .metadata-panel {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
   gap: 16px;
   padding: 18px 20px;
 }

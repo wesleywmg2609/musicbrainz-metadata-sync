@@ -15,6 +15,17 @@ function cleanFileName(name) {
     .trim();
 }
 
+function buildSpotifyFileName(metadata, extension) {
+  const track = String(metadata.track || metadata.trackNumber || "").padStart(2, "0");
+  const title = cleanFileName(metadata.title || "");
+
+  if (!track || !title) {
+    return "";
+  }
+
+  return `${track}. ${title}${extension}`;
+}
+
 async function pathExists(filePath) {
   try {
     await fs.access(filePath);
@@ -25,20 +36,7 @@ async function pathExists(filePath) {
 }
 
 async function getAvailablePath(filePath) {
-  if (!await pathExists(filePath)) {
-    return filePath;
-  }
-
-  const parsedPath = path.parse(filePath);
-  let index = 1;
-  let candidatePath = "";
-
-  do {
-    candidatePath = path.join(parsedPath.dir, `${parsedPath.name} (${index})${parsedPath.ext}`);
-    index += 1;
-  } while (await pathExists(candidatePath));
-
-  return candidatePath;
+  return filePath;
 }
 
 async function removeMetadataFields(filePath, fields) {
@@ -152,6 +150,23 @@ async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRem
     );
 
     await writeFlacMetadata(currentPath, file.spotifyMetadata);
+
+    const newFileName = buildSpotifyFileName(
+      file.spotifyMetadata,
+      path.extname(currentPath)
+    );
+
+    if (!newFileName) {
+      continue;
+    }
+
+    const destinationPath = await getAvailablePath(
+      path.join(targetFolderPath, newFileName)
+    );
+
+    if (destinationPath.toLowerCase() !== currentPath.toLowerCase()) {
+      await renamePath(currentPath, destinationPath, "file");
+    }
   }
 
   const updatedFiles = await addMetadata(
