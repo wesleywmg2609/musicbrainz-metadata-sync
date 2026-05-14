@@ -77,7 +77,8 @@ h2 {
 }
 
 #chooseFolderButton,
-#applyButton {
+#applyButton,
+#fetchSpotifyButton {
   border: 0;
   border-radius: 6px;
   color: #ffffff;
@@ -95,17 +96,35 @@ h2 {
   background: #2f4f67;
 }
 
+#fetchSpotifyButton {
+  background: #1db954;
+}
+
 #chooseFolderButton:disabled,
-#applyButton:disabled {
+#applyButton:disabled,
+#fetchSpotifyButton:disabled {
   cursor: wait;
   opacity: 0.7;
 }
 
 .metadata-panel {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 150px;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
   gap: 16px;
   padding: 18px 20px;
+}
+
+.spotify-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  grid-column: 1 / -1;
+}
+
+.spotify-actions span {
+  color: #68716d;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .folder-preview {

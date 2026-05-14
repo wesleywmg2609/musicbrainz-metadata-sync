@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Renamer</title>
+    <title>Music Metadata Sync</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
     <main class="app-shell">
       <section class="toolbar" aria-label="Folder controls">
         <div>
-          <h1>Music Renamer</h1>
+          <h1>Music Metadata Sync</h1>
           <p id="folderLabel">No folder selected</p>
         </div>
         <div class="toolbar-actions">
@@ -32,6 +32,10 @@
           Starting Track
           <input id="trackStartInput" type="number" min="1" value="1">
         </label>
+        <div class="spotify-actions">
+          <button id="fetchSpotifyButton" type="button">Fetch Spotify</button>
+          <span id="spotifyStatus">Spotify metadata not loaded.</span>
+        </div>
         <div class="folder-preview">
           <span>Folder Preview</span>
           <strong id="folderPreviewName">Selected folder name stays unchanged until artist and album are set.</strong>

@@ -4,12 +4,15 @@ const folderLabel = document.querySelector("#folderLabel");
 const artistInput = document.querySelector("#artistInput");
 const albumInput = document.querySelector("#albumInput");
 const trackStartInput = document.querySelector("#trackStartInput");
+const fetchSpotifyButton = document.querySelector("#fetchSpotifyButton");
+const spotifyStatus = document.querySelector("#spotifyStatus");
 const folderPreviewName = document.querySelector("#folderPreviewName");
 const fileCount = document.querySelector("#fileCount");
 const fileTableBody = document.querySelector("#fileTableBody");
 
 let selectedFiles = [];
 let selectedFolderPath = "";
+let spotifyAlbum = null;
 
 // This file runs in Electron's renderer process.
 // The renderer process behaves like browser JavaScript: it reads inputs,
@@ -37,8 +40,8 @@ function getParentFolderPath(folderPath) {
 // Build the new folder name from metadata.
 // Artist and album should change the folder name, not each audio filename.
 function buildFolderName() {
-  const artist = artistInput.value.trim();
-  const album = albumInput.value.trim();
+  const artist = spotifyAlbum?.albumArtist || artistInput.value.trim();
+  const album = spotifyAlbum?.album || albumInput.value.trim();
 
   if (!artist || !album) {
     return "";
@@ -58,19 +61,18 @@ function buildTargetFolderPath() {
   return `${getParentFolderPath(selectedFolderPath)}${separator}${folderName}`;
 }
 
-function buildTargetFilePath(file) {
-  const separator = getPathSeparator(selectedFolderPath || file.folder);
-  return `${buildTargetFolderPath()}${separator}${file.name}`;
-}
-
 // Filenames are intentionally unchanged. The workflow moves audio files to the
 // target folder root instead of renaming each audio file.
 function buildPreviewName(file) {
   return file.name;
 }
 
+function getPreviewMetadata(file) {
+  return file?.spotifyMetadata || file?.metadata || {};
+}
+
 function getPaddedTrackNumber(index) {
-  const metadataTrack = selectedFiles[index]?.metadata?.trackNumber;
+  const metadataTrack = getPreviewMetadata(selectedFiles[index])?.trackNumber;
 
   if (Number.isFinite(metadataTrack)) {
     return String(metadataTrack).padStart(2, "0");
@@ -83,7 +85,7 @@ function getPaddedTrackNumber(index) {
 }
 
 function getPaddedDiscNumber(file) {
-  const metadataDisc = file.metadata?.discNumber;
+  const metadataDisc = getPreviewMetadata(file)?.discNumber;
 
   if (Number.isFinite(metadataDisc)) {
     return String(metadataDisc).padStart(2, "0");
@@ -104,7 +106,7 @@ function renderFiles() {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
     cell.className = "empty-state";
-    cell.colSpan = 4;
+    cell.colSpan = 8;
     cell.textContent = "No audio files found in this folder.";
     row.append(cell);
     fileTableBody.append(row);
@@ -125,6 +127,7 @@ function renderFiles() {
     const currentFileLocation = document.createElement("span");
     const targetFileName = document.createElement("strong");
     const targetFileLocation = document.createElement("span");
+    const metadata = getPreviewMetadata(file);
 
     discCell.className = "disc-cell";
     discCell.textContent = getPaddedDiscNumber(file);
@@ -133,11 +136,11 @@ function renderFiles() {
     currentFileName.textContent = file.name;
     currentFileLocation.textContent = file.folder;
     targetFileName.textContent = buildPreviewName(file);
-    targetFileLocation.textContent = buildTargetFilePath(file);
-    titleCell.textContent = file.metadata?.title || "";
-    albumCell.textContent = file.metadata?.album || "";
-    artistCell.textContent = file.metadata?.artist || "";
-    albumArtistCell.textContent = file.metadata?.albumArtist || "";
+    targetFileLocation.textContent = buildTargetFolderPath();
+    titleCell.textContent = metadata.title || "";
+    albumCell.textContent = metadata.album || "";
+    artistCell.textContent = metadata.artist || "";
+    albumArtistCell.textContent = metadata.albumArtist || "";
 
     // file data came from main.js after it scanned the selected folder.
     currentCell.append(currentFileName, currentFileLocation);
@@ -162,11 +165,89 @@ chooseFolderButton.addEventListener("click", async () => {
       folderLabel.textContent = result.folderPath;
       selectedFolderPath = result.folderPath;
       selectedFiles = result.files;
+      spotifyAlbum = null;
+      spotifyStatus.textContent = "Spotify metadata not loaded.";
+      fillSearchFieldsFromLocalMetadata(selectedFiles);
       renderFiles();
     }
   } finally {
     chooseFolderButton.disabled = false;
     chooseFolderButton.textContent = "Choose Folder";
+  }
+});
+
+function getLocalMetadataKey(file) {
+  const metadata = file.metadata || {};
+
+  if (!Number.isFinite(metadata.discNumber) || !Number.isFinite(metadata.trackNumber)) {
+    return "";
+  }
+
+  return `${metadata.discNumber}:${metadata.trackNumber}`;
+}
+
+function getSpotifyMetadataKey(track) {
+  if (!Number.isFinite(track.discNumber) || !Number.isFinite(track.trackNumber)) {
+    return "";
+  }
+
+  return `${track.discNumber}:${track.trackNumber}`;
+}
+
+function applySpotifyMetadata(albumData) {
+  const tracksByKey = new Map();
+
+  albumData.tracks.forEach((track) => {
+    const key = getSpotifyMetadataKey(track);
+
+    if (key) {
+      tracksByKey.set(key, track);
+    }
+  });
+
+  selectedFiles = selectedFiles.map((file, index) => {
+    const matchingTrack = tracksByKey.get(getLocalMetadataKey(file)) || albumData.tracks[index] || null;
+
+    return {
+      ...file,
+      spotifyMetadata: matchingTrack
+    };
+  });
+}
+
+function fillSearchFieldsFromLocalMetadata(files) {
+  const metadata = files.find((file) => file.metadata?.album || file.metadata?.albumArtist || file.metadata?.artist)?.metadata;
+
+  if (!metadata) {
+    return;
+  }
+
+  artistInput.value = artistInput.value || metadata.albumArtist || metadata.artist || "";
+  albumInput.value = albumInput.value || metadata.album || "";
+}
+
+fetchSpotifyButton.addEventListener("click", async () => {
+  fetchSpotifyButton.disabled = true;
+  fetchSpotifyButton.textContent = "Fetching...";
+  spotifyStatus.textContent = "Searching Spotify...";
+
+  try {
+    spotifyAlbum = await window.musicRenamer.fetchSpotifyAlbum({
+      artist: artistInput.value,
+      album: albumInput.value
+    });
+
+    artistInput.value = artistInput.value || spotifyAlbum.albumArtist;
+    albumInput.value = albumInput.value || spotifyAlbum.album;
+    applySpotifyMetadata(spotifyAlbum);
+    spotifyStatus.textContent = `Loaded ${spotifyAlbum.tracks.length} Spotify tracks from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
+    renderFiles();
+  } catch (error) {
+    spotifyStatus.textContent = error.message;
+    window.alert(error.message);
+  } finally {
+    fetchSpotifyButton.disabled = false;
+    fetchSpotifyButton.textContent = "Fetch Spotify";
   }
 });
 

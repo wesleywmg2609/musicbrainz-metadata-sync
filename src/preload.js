@@ -10,5 +10,9 @@ contextBridge.exposeInMainWorld("musicRenamer", {
   chooseFolder: () => ipcRenderer.invoke("folder:choose"),
 
   // Runs the real folder rename + audio flatten workflow in main.js.
-  applyFolderWorkflow: (payload) => ipcRenderer.invoke("folder:apply", payload)
+  applyFolderWorkflow: (payload) => ipcRenderer.invoke("folder:apply", payload),
+
+  // Fetches album metadata through main.js so Spotify credentials stay out of
+  // direct renderer networking code.
+  fetchSpotifyAlbum: (payload) => ipcRenderer.invoke("spotify:album", payload)
 });
