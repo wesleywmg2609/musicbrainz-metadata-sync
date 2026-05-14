@@ -7,7 +7,12 @@ const { addMetadata, sortFilesByMetadata, walkAudioFiles } = require("./audio");
 const execFileAsync = promisify(execFile);
 
 function cleanFileName(name) {
-  return name.replace(/[<>:"/\\|?*]/g, "").replace(/\s+/g, " ").trim();
+  return name
+    .normalize("NFKC")
+    .replace(/[<>:"/\\|?*']/g, "")
+    .replace(/\p{C}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function pathExists(filePath) {
@@ -54,7 +59,44 @@ async function removeMetadataFields(filePath, fields) {
   }
 }
 
-async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRemove = [] }) {
+async function writeFlacMetadata(filePath, metadata) {
+  if (path.extname(filePath).toLowerCase() !== ".flac") {
+    return;
+  }
+
+  const tags = [
+    ["TITLE", metadata.title],
+    ["ARTIST", metadata.artist],
+    ["ALBUM", metadata.album],
+    ["ALBUMARTIST", metadata.albumArtist],
+    ["DATE", metadata.date],
+    ["GENRE", metadata.genre],
+    ["TRACKNUMBER", metadata.track],
+    ["DISCNUMBER", metadata.disc]
+  ];
+
+  for (const [field, value] of tags) {
+    if (!value) {
+      continue;
+    }
+
+    try {
+      await execFileAsync("metaflac", [
+        `--remove-tag=${field}`,
+        `--set-tag=${field}=${value}`,
+        filePath
+      ]);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        throw new Error("metaflac is required to write FLAC metadata.");
+      }
+
+      throw error;
+    }
+  }
+}
+
+async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRemove = [], files = [] }) {
   let targetFolderPath = folderPath;
   const safeFolderName = cleanFileName(folderName || "");
 
@@ -66,21 +108,28 @@ async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRem
         throw new Error(`Target folder already exists: ${targetFolderPath}`);
       }
 
-      await fs.rename(folderPath, targetFolderPath);
+      await renamePath(folderPath, targetFolderPath, "folder");
     }
   }
 
-  const fieldsToRemove = Array.isArray(metadataFieldsToRemove) ? metadataFieldsToRemove : [];
-  const files = await walkAudioFiles(targetFolderPath);
+  const fieldsToRemove = Array.isArray(metadataFieldsToRemove)
+    ? metadataFieldsToRemove
+    : [];
+
+  const audioFiles = await walkAudioFiles(targetFolderPath);
+
   let movedCount = 0;
 
-  for (const file of files) {
+  for (const file of audioFiles) {
     if (file.folder.toLowerCase() === targetFolderPath.toLowerCase()) {
       continue;
     }
 
-    const destinationPath = await getAvailablePath(path.join(targetFolderPath, file.name));
-    await fs.rename(file.path, destinationPath);
+    const destinationPath = await getAvailablePath(
+      path.join(targetFolderPath, file.name)
+    );
+
+    await renamePath(file.path, destinationPath, "file");
     movedCount += 1;
   }
 
@@ -92,7 +141,23 @@ async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRem
     }
   }
 
-  const updatedFiles = await addMetadata(await walkAudioFiles(targetFolderPath));
+  for (const file of files) {
+    if (!file.spotifyMetadata) {
+      continue;
+    }
+
+    const currentPath = path.join(
+      targetFolderPath,
+      path.basename(file.path)
+    );
+
+    await writeFlacMetadata(currentPath, file.spotifyMetadata);
+  }
+
+  const updatedFiles = await addMetadata(
+    await walkAudioFiles(targetFolderPath)
+  );
+
   sortFilesByMetadata(updatedFiles);
 
   return {
@@ -100,6 +165,23 @@ async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRem
     files: updatedFiles,
     movedCount
   };
+}
+
+async function renamePath(sourcePath, destinationPath, type = "path") {
+  try {
+    await fs.rename(sourcePath, destinationPath);
+  } catch (error) {
+    if (error.code === "EPERM") {
+      throw new Error(
+        `Failed to rename ${type}. Windows blocked the operation.\n\n` +
+        `From: ${sourcePath}\n` +
+        `To: ${destinationPath}\n\n` +
+        `Close File Explorer, MusicBee, terminal, or any app using this folder/file, then try again.`
+      );
+    }
+
+    throw error;
+  }
 }
 
 async function getFolderAudioFiles(folderPath) {

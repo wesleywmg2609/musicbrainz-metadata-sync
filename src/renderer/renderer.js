@@ -238,7 +238,7 @@ function isKeyMetadataTag(key) {
     "artist",
     "albumartist",
     "disc",
-    "discnumber",
+    "date",
     "discnumber",
     "track",
     "tracknumber"
@@ -315,6 +315,7 @@ function createMetadataTooltip(file) {
     ["Album", currentMetadata.album, targetMetadata.album],
     ["Artist", currentMetadata.artist, targetMetadata.artist],
     ["Album artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
+    ["Date", currentMetadata.date, targetMetadata.date],
     ["Disc", currentMetadata.discNumber, targetMetadata.discNumber],
     ["Track", currentMetadata.trackNumber, targetMetadata.trackNumber]
   ];
@@ -334,16 +335,25 @@ function createMetadataTooltip(file) {
     }));
   });
 
-  if (rawTags.length === 0) {
-    otherSection.append(createMetadataLine("Tags", "empty"));
-  } else {
+  if (rawTags.length > 0) {
     rawTags.forEach(([key, value]) => {
-      const targetValue = shouldRemoveMetadataField(key) ? "" : undefined;
-      otherSection.append(createMetadataLine(formatMetadataLabel(key), value, targetValue));
+      const targetValue = shouldRemoveMetadataField(key)
+        ? ""
+        : undefined;
+
+      otherSection.append(
+        createMetadataLine(
+          formatMetadataLabel(key),
+          value,
+          targetValue
+        )
+      );
     });
+
+    tooltip.append(otherSection);
   }
 
-  tooltip.append(keySection, otherSection);
+  tooltip.append(keySection);
 
   function showTooltip() {
     const rect = button.getBoundingClientRect();
@@ -540,7 +550,8 @@ applyButton.addEventListener("click", async () => {
     const result = await window.musicMetadataSync.applyFolderWorkflow({
       folderPath: selectedFolderPath,
       folderName: buildFolderName(),
-      metadataFieldsToRemove: [...selectedRemoveMetadataFields]
+      metadataFieldsToRemove: [...selectedRemoveMetadataFields],
+      files: selectedFiles
     });
 
     selectedFolderPath = result.folderPath;
