@@ -79,26 +79,6 @@ function scoreSpotifyAlbum(candidate, artist, album) {
   const wantedArtist = normalizeSearchText(artist);
   const wantedAlbum = normalizeSearchText(album);
   const candidateAlbum = normalizeSearchText(candidate.name);
-  const candidateArtists = normalizeSearchText(candidate.artists.map((item) => item.name).join(" "));
-  let score = 0;
-
-  if (candidateAlbum === wantedAlbum) {
-    score += 100;
-  } else if (candidateAlbum.includes(wantedAlbum) || wantedAlbum.includes(candidateAlbum)) {
-    score += 60;
-  }
-
-  if (candidateArtists.includes(wantedArtist)) {
-    score += 40;
-  }
-
-  return score;
-}
-
-function scoreSpotifyAlbum(candidate, artist, album) {
-  const wantedArtist = normalizeSearchText(artist);
-  const wantedAlbum = normalizeSearchText(album);
-  const candidateAlbum = normalizeSearchText(candidate.name);
   const candidateArtists = normalizeSearchText(
     candidate.artists.map((item) => item.name).join(" ")
   );

@@ -69,7 +69,7 @@ async function writeFlacMetadata(filePath, metadata) {
     return;
   }
 
-  await removeMetadataFields(filePath, ["TRACK", "DISCNUMBER"]);
+  await removeMetadataFields(filePath, ["TRACK"]);
 
   const tags = [
     ["TITLE", metadata.title],
@@ -78,8 +78,7 @@ async function writeFlacMetadata(filePath, metadata) {
     ["ALBUMARTIST", metadata.albumArtist],
     ["DATE", metadata.date],
     ["GENRE", metadata.genre],
-    ["TRACKNUMBER", metadata.track],
-    ["DISC", metadata.disc]
+    ["TRACKNUMBER", metadata.track]
   ];
 
   for (const [field, value] of tags) {

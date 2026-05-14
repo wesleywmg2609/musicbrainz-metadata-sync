@@ -2,6 +2,7 @@ const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
 const path = require("node:path");
 const { loadDotEnv } = require("./main/env");
 const { applyFolderWorkflow, getFolderAudioFiles } = require("./main/folderWorkflow");
+const { fetchLastfmAlbumMetadata } = require("./main/lastfm");
 const { fetchSpotifyAlbumMetadata } = require("./main/spotify");
 
 loadDotEnv();
@@ -70,6 +71,10 @@ ipcMain.handle("folder:apply", async (_event, payload) => {
 
 ipcMain.handle("spotify:album", async (_event, payload) => {
   return fetchSpotifyAlbumMetadata(payload);
+});
+
+ipcMain.handle("lastfm:album", async (_event, payload) => {
+  return fetchLastfmAlbumMetadata(payload);
 });
 
 app.whenReady().then(() => {

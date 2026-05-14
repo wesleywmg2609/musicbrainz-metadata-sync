@@ -2,6 +2,7 @@ const chooseFolderButton = document.querySelector("#chooseFolderButton");
 const applyButton = document.querySelector("#applyButton");
 const folderLabel = document.querySelector("#folderLabel");
 const fetchSpotifyButton = document.querySelector("#fetchSpotifyButton");
+const fetchLastfmButton = document.querySelector("#fetchLastfmButton");
 const spotifyStatus = document.querySelector("#spotifyStatus");
 const folderPreviewName = document.querySelector("#folderPreviewName");
 const removeMetadataCount = document.querySelector("#removeMetadataCount");
@@ -303,7 +304,6 @@ function isKeyMetadataTag(key) {
     "artist",
     "albumartist",
     "date",
-    "disc",
     "track"
   ]);
 
@@ -321,7 +321,6 @@ function renderMetadataTooltipContent(tooltip, file) {
     ["Artist", currentMetadata.artist, targetMetadata.artist],
     ["Album Artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
     ["Date", currentMetadata.date, targetMetadata.date],
-    ["DISC", currentMetadata.disc, targetMetadata.disc],
     ["TRACK", currentMetadata.track, targetMetadata.track]
   ];
   const rawTags = getSortedRawTags(currentMetadata.rawTags).filter(([key]) => !isKeyMetadataTag(key));
@@ -477,7 +476,7 @@ chooseFolderButton.addEventListener("click", async () => {
       selectedFolderPath = result.folderPath;
       selectedFiles = result.files;
       spotifyAlbum = null;
-      spotifyStatus.textContent = "Spotify metadata not loaded.";
+      spotifyStatus.textContent = "Metadata not loaded.";
       renderRemoveMetadataOptions();
       renderFiles();
     }
@@ -526,10 +525,17 @@ function applySpotifyMetadata(albumData) {
   });
 }
 
-fetchSpotifyButton.addEventListener("click", async () => {
+async function fetchExternalAlbumMetadata(source) {
+  const isSpotify = source === "spotify";
+  const button = isSpotify ? fetchSpotifyButton : fetchLastfmButton;
+  const idleText = isSpotify ? "Fetch Spotify" : "Fetch Last.fm";
+  const sourceName = isSpotify ? "Spotify" : "Last.fm";
+
+  button.disabled = true;
   fetchSpotifyButton.disabled = true;
-  fetchSpotifyButton.textContent = "Fetching...";
-  spotifyStatus.textContent = "Searching Spotify...";
+  fetchLastfmButton.disabled = true;
+  button.textContent = "Fetching...";
+  spotifyStatus.textContent = `Searching ${sourceName}...`;
 
   try {
     const metadata = selectedFiles.find(
@@ -538,20 +544,36 @@ fetchSpotifyButton.addEventListener("click", async () => {
         (file.metadata?.albumArtist || file.metadata?.artist)
     )?.metadata;
 
-    spotifyAlbum = await window.musicMetadataSync.fetchSpotifyAlbum({
+    const payload = {
       artist: metadata?.albumArtist || metadata?.artist,
-      album: metadata?.album
-    });
+      album: metadata?.album,
+      files: isSpotify ? undefined : selectedFiles
+    };
+
+    spotifyAlbum = isSpotify
+      ? await window.musicMetadataSync.fetchSpotifyAlbum(payload)
+      : await window.musicMetadataSync.fetchLastfmAlbum(payload);
     applySpotifyMetadata(spotifyAlbum);
-    spotifyStatus.textContent = `Loaded ${spotifyAlbum.tracks.length} Spotify tracks from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
+    spotifyStatus.textContent = spotifyAlbum.trackSource === "local"
+      ? `Loaded ${sourceName} album metadata from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}; using ${spotifyAlbum.tracks.length} local track rows.`
+      : `Loaded ${spotifyAlbum.tracks.length} ${sourceName} tracks from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
     renderFiles({ restoreActiveTooltip: true });
   } catch (error) {
     spotifyStatus.textContent = error.message;
     window.alert(error.message);
   } finally {
     fetchSpotifyButton.disabled = false;
-    fetchSpotifyButton.textContent = "Fetch Spotify";
+    fetchLastfmButton.disabled = false;
+    button.textContent = idleText;
   }
+}
+
+fetchSpotifyButton.addEventListener("click", async () => {
+  await fetchExternalAlbumMetadata("spotify");
+});
+
+fetchLastfmButton.addEventListener("click", async () => {
+  await fetchExternalAlbumMetadata("lastfm");
 });
 
 window.addEventListener("pointermove", (event) => {

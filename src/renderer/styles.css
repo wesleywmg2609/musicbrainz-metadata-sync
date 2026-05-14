@@ -100,7 +100,8 @@ input:focus {
 /* Buttons */
 #chooseFolderButton,
 #applyButton,
-#fetchSpotifyButton {
+#fetchSpotifyButton,
+#fetchLastfmButton {
   border: 0;
   border-radius: 6px;
   color: #ffffff;
@@ -122,9 +123,14 @@ input:focus {
   background: #1db954;
 }
 
+#fetchLastfmButton {
+  background: #b90000;
+}
+
 #chooseFolderButton:disabled,
 #applyButton:disabled,
-#fetchSpotifyButton:disabled {
+#fetchSpotifyButton:disabled,
+#fetchLastfmButton:disabled {
   cursor: wait;
   opacity: 0.7;
 }
@@ -161,13 +167,16 @@ input:focus {
   padding: 18px 20px;
 }
 
+.metadata-actions,
 .spotify-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   grid-column: 1 / -1;
 }
 
+.metadata-actions span,
 .spotify-actions span {
   color: #68716d;
   font-size: 13px;
