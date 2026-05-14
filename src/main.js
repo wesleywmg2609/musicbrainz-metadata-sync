@@ -29,12 +29,6 @@ function createAppMenu(mainWindow) {
     {
       label: "File",
       submenu: [
-        { role: "quit" }
-      ]
-    },
-    {
-      label: "Edit",
-      submenu: [
         {
           label: "Preferences",
           accelerator: "CmdOrCtrl+,",
@@ -43,13 +37,7 @@ function createAppMenu(mainWindow) {
           }
         },
         { type: "separator" },
-        { role: "undo" },
-        { role: "redo" },
-        { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
-        { role: "selectAll" }
+        { role: "quit" }
       ]
     },
     {
@@ -58,18 +46,7 @@ function createAppMenu(mainWindow) {
         { role: "reload" },
         { role: "toggleDevTools" },
         { type: "separator" },
-        { role: "resetZoom" },
-        { role: "zoomIn" },
-        { role: "zoomOut" },
-        { type: "separator" },
         { role: "togglefullscreen" }
-      ]
-    },
-    {
-      label: "Window",
-      submenu: [
-        { role: "minimize" },
-        { role: "close" }
       ]
     }
   ];

@@ -351,7 +351,9 @@ function createMetadataTooltip(file) {
     keySection.append(createMetadataLine(label, currentValue, file.spotifyMetadata ? targetValue : undefined, {
       blankEmpty: true
     }));
-  });
+  });  
+  
+  tooltip.append(keySection);
 
   if (rawTags.length > 0) {
     rawTags.forEach(([key, value]) => {
@@ -370,8 +372,6 @@ function createMetadataTooltip(file) {
 
     tooltip.append(otherSection);
   }
-
-  tooltip.append(keySection);
 
   function showTooltip() {
     const rect = button.getBoundingClientRect();

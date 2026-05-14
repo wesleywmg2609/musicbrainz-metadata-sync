@@ -95,13 +95,52 @@ function scoreSpotifyAlbum(candidate, artist, album) {
   return score;
 }
 
+function scoreSpotifyAlbum(candidate, artist, album) {
+  const wantedArtist = normalizeSearchText(artist);
+  const wantedAlbum = normalizeSearchText(album);
+  const candidateAlbum = normalizeSearchText(candidate.name);
+  const candidateArtists = normalizeSearchText(
+    candidate.artists.map((item) => item.name).join(" ")
+  );
+
+  if (!wantedArtist || !wantedAlbum) {
+    return -1;
+  }
+
+  if (!candidateArtists.includes(wantedArtist)) {
+    return -1;
+  }
+
+  let score = 100;
+
+  if (candidateAlbum === wantedAlbum) {
+    score += 100;
+  } else if (candidateAlbum.includes(wantedAlbum)) {
+    score += 80;
+  } else if (wantedAlbum.includes(candidateAlbum)) {
+    score += 50;
+  } else {
+    const wantedWords = wantedAlbum.split(" ").filter((word) => word.length > 2);
+    const matchedWords = wantedWords.filter((word) => candidateAlbum.includes(word));
+
+    score += matchedWords.length * 8;
+  }
+
+  if (candidate.album_type === "compilation") {
+    score += 10;
+  }
+
+  return score;
+}
+
 async function searchSpotifyAlbums(token, artist, album) {
   const queries = [
     `album:"${album}" artist:"${artist}"`,
     `${album} ${artist}`,
-    `album:"${album}"`,
-    album
+    `artist:"${artist}" ${album}`,
+    `"${artist}" "${album}"`
   ];
+
   const seen = new Set();
   const candidates = [];
 
@@ -109,9 +148,13 @@ async function searchSpotifyAlbums(token, artist, album) {
     const searchParams = new URLSearchParams({
       q: query,
       type: "album",
-      limit: "10"
+      limit: "20"
     });
-    const search = await fetchSpotifyJson(`https://api.spotify.com/v1/search?${searchParams}`, token);
+
+    const search = await fetchSpotifyJson(
+      `https://api.spotify.com/v1/search?${searchParams}`,
+      token
+    );
 
     for (const candidate of search.albums?.items || []) {
       if (seen.has(candidate.id)) {
@@ -119,16 +162,24 @@ async function searchSpotifyAlbums(token, artist, album) {
       }
 
       seen.add(candidate.id);
-      candidates.push(candidate);
+
+      const score = scoreSpotifyAlbum(candidate, artist, album);
+
+      if (score >= 0) {
+        candidates.push({
+          ...candidate,
+          score
+        });
+      }
     }
 
-    if (candidates.some((candidate) => scoreSpotifyAlbum(candidate, artist, album) >= 100)) {
+    if (candidates.some((candidate) => candidate.score >= 180)) {
       break;
     }
   }
 
   candidates.sort((a, b) => (
-    scoreSpotifyAlbum(b, artist, album) - scoreSpotifyAlbum(a, artist, album) ||
+    b.score - a.score ||
     String(b.release_date || "").localeCompare(String(a.release_date || ""))
   ));
 
