@@ -60,8 +60,8 @@ function getParentFolderPath(folderPath) {
 }
 
 function buildFolderName() {
-  const artist = spotifyAlbum?.albumArtist || artistInput.value.trim();
-  const album = spotifyAlbum?.album || albumInput.value.trim();
+  const artist = artistInput.value.trim();
+  const album = albumInput.value.trim();
 
   if (!artist || !album) {
     return "";
@@ -507,13 +507,19 @@ fetchSpotifyButton.addEventListener("click", async () => {
   spotifyStatus.textContent = "Searching Spotify...";
 
   try {
+    const metadata = selectedFiles.find(
+      (file) =>
+        file.metadata?.album &&
+        (file.metadata?.albumArtist || file.metadata?.artist)
+    )?.metadata;
+
     spotifyAlbum = await window.musicMetadataSync.fetchSpotifyAlbum({
-      artist: artistInput.value,
-      album: albumInput.value
+      artist: metadata?.albumArtist || metadata?.artist || artistInput.value,
+      album: metadata?.album || albumInput.value
     });
 
-    artistInput.value = artistInput.value || spotifyAlbum.albumArtist;
-    albumInput.value = albumInput.value || spotifyAlbum.album;
+    artistInput.value = spotifyAlbum.albumArtist;
+    albumInput.value = spotifyAlbum.album;
     applySpotifyMetadata(spotifyAlbum);
     spotifyStatus.textContent = `Loaded ${spotifyAlbum.tracks.length} Spotify tracks from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
     renderFiles();
