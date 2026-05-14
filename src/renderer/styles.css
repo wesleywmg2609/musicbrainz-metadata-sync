@@ -381,7 +381,7 @@ td span {
   min-width: 340px;
   overflow-y: auto;
   padding: 12px;
-  pointer-events: none;
+  pointer-events: auto;
   position: fixed;
   transform: translateY(6px);
   transition: opacity 120ms ease, transform 120ms ease;

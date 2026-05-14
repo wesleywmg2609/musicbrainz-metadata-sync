@@ -174,11 +174,16 @@ function createMetadataLine(label, currentValue, targetValue, options = {}) {
   const valueElement = document.createElement("strong");
   const currentText = formatMetadataValue(currentValue, options);
   const targetText = formatMetadataValue(targetValue, options);
+  const hasTargetValue = targetValue !== undefined;
+  const isRemovingValue = hasTargetValue && (
+    targetValue === null ||
+    targetValue === ""
+  );
 
   row.className = "metadata-tooltip-row";
   labelElement.textContent = label.toUpperCase();
 
-  if (targetValue !== undefined && currentText !== targetText) {
+  if (hasTargetValue && currentText !== targetText) {
     const oldValue = document.createElement("span");
 
     row.classList.add("metadata-change");
@@ -186,14 +191,25 @@ function createMetadataLine(label, currentValue, targetValue, options = {}) {
     oldValue.className = "metadata-old-value";
     oldValue.textContent = currentText;
 
-    if (targetText === "empty") {
-      valueElement.append(oldValue);
+    const hasCurrentValue = currentText !== "";
+
+    if (isRemovingValue) {
+      row.classList.add("metadata-remove");
+
+      if (hasCurrentValue) {
+        valueElement.append(oldValue);
+      }
     } else {
       const newValue = document.createElement("span");
 
       newValue.className = "metadata-new-value";
       newValue.textContent = targetText;
-      valueElement.append(oldValue, newValue);
+
+      if (hasCurrentValue) {
+        valueElement.append(oldValue, newValue);
+      } else {
+        valueElement.append(newValue);
+      }
     }
   } else {
     valueElement.textContent = currentText;
@@ -304,6 +320,7 @@ function isKeyMetadataTag(key) {
     "artist",
     "albumartist",
     "date",
+    "disc",
     "track"
   ]);
 
@@ -321,6 +338,7 @@ function renderMetadataTooltipContent(tooltip, file) {
     ["Artist", currentMetadata.artist, targetMetadata.artist],
     ["Album Artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
     ["Date", currentMetadata.date, targetMetadata.date],
+    ["DISC", currentMetadata.disc, targetMetadata.disc],
     ["TRACK", currentMetadata.track, targetMetadata.track]
   ];
   const rawTags = getSortedRawTags(currentMetadata.rawTags).filter(([key]) => !isKeyMetadataTag(key));
@@ -390,10 +408,19 @@ function createMetadataTooltip(file, fileIndex) {
     tooltip.remove();
   }
 
-  button.addEventListener("mouseenter", showTooltip);
-  button.addEventListener("focus", showTooltip);
-  button.addEventListener("mouseleave", hideTooltip);
-  button.addEventListener("blur", hideTooltip);
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+
+    const isAlreadyOpen =
+      activeMetadataTooltip?.element === tooltip;
+
+    if (isAlreadyOpen) {
+      hideActiveMetadataTooltip();
+      return;
+    }
+
+    showTooltip();
+  });
 
   wrapper.showMetadataTooltip = showTooltip;
   wrapper.isMetadataButtonHovered = () => isPointerOverElement(button);
@@ -606,6 +633,20 @@ applyButton.addEventListener("click", async () => {
     applyButton.textContent = "Apply Changes";
     renderFiles();
   }
+});
+
+document.addEventListener("click", (event) => {
+  if (!activeMetadataTooltip) {
+    return;
+  }
+
+  if (
+    activeMetadataTooltip.element.contains(event.target)
+  ) {
+    return;
+  }
+
+  hideActiveMetadataTooltip();
 });
 
 renderRemoveMetadataOptions();

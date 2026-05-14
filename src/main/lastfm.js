@@ -55,6 +55,27 @@ function getLastfmAlbumGenre(album) {
     .join(", ");
 }
 
+function applyDiscMetadata(tracks) {
+  const maxDiscNumber = Math.max(
+    1,
+    ...tracks.map((track) => track.discNumber || 1)
+  );
+
+  const isMultiDisc = maxDiscNumber > 1;
+
+  return tracks.map((track) => {
+    const discNumber = isMultiDisc
+      ? (track.discNumber || 1)
+      : null;
+
+    return {
+      ...track,
+      disc: discNumber ? String(discNumber) : "",
+      discNumber
+    };
+  });
+}
+
 function normalizeLastfmTrack(track, album, index) {
   const trackNumber = normalizeTrackNumber(track, index);
   const artist = track.artist?.name || album.artist || "";
@@ -151,6 +172,8 @@ async function fetchLastfmAlbumMetadata(payload) {
   if (tracks.length === 0) {
     throw new Error(`Last.fm did not return tracks for "${artist} - ${album}" and no local tracks were available.`);
   }
+
+  tracks = applyDiscMetadata(tracks);
 
   tracks.sort((a, b) => (
     compareNullableNumbers(a.discNumber, b.discNumber) ||

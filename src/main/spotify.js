@@ -46,14 +46,18 @@ async function fetchSpotifyJson(url, token) {
   return response.json();
 }
 
-function normalizeSpotifyTrack(track, album) {
+function normalizeSpotifyTrack(track, album, isMultiDisc) {
   const artist = track.artists.map((item) => item.name).join(", ");
   const albumArtist = album.artists.map((item) => item.name).join(", ");
 
+  const discNumber = isMultiDisc
+    ? (track.disc_number || 1)
+    : null;
+
   return {
     spotifyId: track.id,
-    disc: String(track.disc_number || ""),
-    discNumber: track.disc_number || null,
+    disc: discNumber ? String(discNumber) : "",
+    discNumber,
     track: String(track.track_number || ""),
     trackNumber: track.track_number || null,
     title: track.name,
@@ -197,7 +201,15 @@ async function fetchSpotifyAlbumMetadata(payload) {
 
   const albumData = await fetchSpotifyJson(`https://api.spotify.com/v1/albums/${spotifyAlbum.id}`, token);
   const albumTracks = await fetchAllSpotifyAlbumTracks(albumData, token);
-  const tracks = albumTracks.map((track) => normalizeSpotifyTrack(track, albumData));
+  const maxDiscNumber = Math.max(
+    ...albumTracks.map((track) => track.disc_number || 1)
+  );
+
+  const isMultiDisc = maxDiscNumber > 1;
+
+  const tracks = albumTracks.map((track) =>
+    normalizeSpotifyTrack(track, albumData, isMultiDisc)
+  );
 
   tracks.sort((a, b) => (
     compareNullableNumbers(a.discNumber, b.discNumber) ||
