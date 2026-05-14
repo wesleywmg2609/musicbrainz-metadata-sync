@@ -14,10 +14,6 @@ let selectedFiles = [];
 let selectedFolderPath = "";
 let spotifyAlbum = null;
 
-// This file runs in Electron's renderer process.
-// The renderer process behaves like browser JavaScript: it reads inputs,
-// handles button clicks, and updates the HTML. It does not directly read
-// folders; it asks main.js through window.musicRenamer from preload.js.
 function cleanFileName(name) {
   return name
     .replace(/[<>:"/\\|?*]/g, "")
@@ -37,8 +33,6 @@ function getParentFolderPath(folderPath) {
   return separatorIndex >= 0 ? normalizedPath.slice(0, separatorIndex) : normalizedPath;
 }
 
-// Build the new folder name from metadata.
-// Artist and album should change the folder name, not each audio filename.
 function buildFolderName() {
   const artist = spotifyAlbum?.albumArtist || artistInput.value.trim();
   const album = spotifyAlbum?.album || albumInput.value.trim();
@@ -61,8 +55,6 @@ function buildTargetFolderPath() {
   return `${getParentFolderPath(selectedFolderPath)}${separator}${folderName}`;
 }
 
-// Filenames are intentionally unchanged. The workflow moves audio files to the
-// target folder root instead of renaming each audio file.
 function buildPreviewName(file) {
   return file.name;
 }
@@ -94,8 +86,6 @@ function getPaddedDiscNumber(file) {
   return "";
 }
 
-// Re-render the table whenever the selected folder or metadata inputs change.
-// replaceChildren clears old rows so the preview always matches current state.
 function renderFiles() {
   fileCount.textContent = `${selectedFiles.length} ${selectedFiles.length === 1 ? "file" : "files"}`;
   folderPreviewName.textContent = buildFolderName() || "Selected folder name stays unchanged until artist and album are set.";
@@ -142,7 +132,6 @@ function renderFiles() {
     artistCell.textContent = metadata.artist || "";
     albumArtistCell.textContent = metadata.albumArtist || "";
 
-    // file data came from main.js after it scanned the selected folder.
     currentCell.append(currentFileName, currentFileLocation);
     targetCell.append(targetFileName, targetFileLocation);
 
@@ -151,15 +140,12 @@ function renderFiles() {
   });
 }
 
-// Ask the main process to open a folder picker and return audio files.
-// The full route is:
-// renderer.js -> preload.js -> ipcMain handler in main.js -> back to renderer.js.
 chooseFolderButton.addEventListener("click", async () => {
   chooseFolderButton.disabled = true;
   chooseFolderButton.textContent = "Choosing...";
 
   try {
-    const result = await window.musicRenamer.chooseFolder();
+    const result = await window.musicMetadataSync.chooseFolder();
 
     if (result) {
       folderLabel.textContent = result.folderPath;
@@ -232,7 +218,7 @@ fetchSpotifyButton.addEventListener("click", async () => {
   spotifyStatus.textContent = "Searching Spotify...";
 
   try {
-    spotifyAlbum = await window.musicRenamer.fetchSpotifyAlbum({
+    spotifyAlbum = await window.musicMetadataSync.fetchSpotifyAlbum({
       artist: artistInput.value,
       album: albumInput.value
     });
@@ -256,7 +242,7 @@ applyButton.addEventListener("click", async () => {
   applyButton.textContent = "Applying...";
 
   try {
-    const result = await window.musicRenamer.applyFolderWorkflow({
+    const result = await window.musicMetadataSync.applyFolderWorkflow({
       folderPath: selectedFolderPath,
       folderName: buildFolderName()
     });
@@ -274,6 +260,5 @@ applyButton.addEventListener("click", async () => {
 });
 
 [artistInput, albumInput, trackStartInput].forEach((input) => {
-  // Typing in any metadata input updates the preview immediately.
   input.addEventListener("input", renderFiles);
 });
