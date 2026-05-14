@@ -44,7 +44,14 @@ async function removeMetadataFields(filePath, fields) {
     return;
   }
 
-  for (const field of fields) {
+  const fieldsToRemove = [...new Set(
+    fields
+      .map((field) => String(field || "").trim())
+      .filter(Boolean)
+      .flatMap((field) => [field, field.toUpperCase()])
+  )];
+
+  for (const field of fieldsToRemove) {
     try {
       await execFileAsync("metaflac", [`--remove-tag=${field}`, filePath]);
     } catch (error) {
@@ -62,6 +69,8 @@ async function writeFlacMetadata(filePath, metadata) {
     return;
   }
 
+  await removeMetadataFields(filePath, ["TRACK", "DISCNUMBER"]);
+
   const tags = [
     ["TITLE", metadata.title],
     ["ARTIST", metadata.artist],
@@ -70,7 +79,7 @@ async function writeFlacMetadata(filePath, metadata) {
     ["DATE", metadata.date],
     ["GENRE", metadata.genre],
     ["TRACKNUMBER", metadata.track],
-    ["DISCNUMBER", metadata.disc]
+    ["DISC", metadata.disc]
   ];
 
   for (const [field, value] of tags) {

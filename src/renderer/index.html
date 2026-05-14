@@ -32,6 +32,19 @@
       </div>
     </section>
 
+    <section class="settings-panel" aria-label="Metadata removal fields">
+      <div class="settings-header">
+        <div>
+          <h2>Remove Metadata Fields</h2>
+          <p>Defaults use Xiph field names and expand with fields found in selected files.</p>
+        </div>
+        <span id="removeMetadataCount">0 fields selected</span>
+      </div>
+      <fieldset>
+        <div id="removeMetadataOptions" class="checkbox-grid"></div>
+      </fieldset>
+    </section>
+
     <section class="file-panel" aria-label="Audio file preview">
       <div class="file-panel-header">
         <h2>Preview</h2>
@@ -55,26 +68,6 @@
       </div>
     </section>
   </main>
-
-  <div id="preferencesModal" class="modal-backdrop" hidden>
-    <section class="settings-panel preferences-panel" aria-label="Preferences" role="dialog" aria-modal="true">
-      <div class="settings-header">
-        <div>
-          <h2>Preferences</h2>
-          <p>Choose metadata fields to remove when applying changes.</p>
-        </div>
-        <button id="closePreferencesButton" class="icon-button" type="button" aria-label="Close preferences">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-            <path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
-        </button>
-      </div>
-      <fieldset>
-        <span id="removeMetadataCount">0 fields selected</span>
-        <div id="removeMetadataOptions" class="checkbox-grid"></div>
-      </fieldset>
-    </section>
-  </div>
 
   <script src="./renderer.js"></script>
 </body>

@@ -24,19 +24,11 @@ function createWindow() {
   return mainWindow;
 }
 
-function createAppMenu(mainWindow) {
+function createAppMenu() {
   const template = [
     {
       label: "File",
       submenu: [
-        {
-          label: "Preferences",
-          accelerator: "CmdOrCtrl+,",
-          click: () => {
-            mainWindow.webContents.send("preferences:open");
-          }
-        },
-        { type: "separator" },
         { role: "quit" }
       ]
     },
@@ -81,13 +73,13 @@ ipcMain.handle("spotify:album", async (_event, payload) => {
 });
 
 app.whenReady().then(() => {
-  const mainWindow = createWindow();
-  createAppMenu(mainWindow);
+  createWindow();
+  createAppMenu();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      const newWindow = createWindow();
-      createAppMenu(newWindow);
+      createWindow();
+      createAppMenu();
     }
   });
 });

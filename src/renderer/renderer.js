@@ -4,61 +4,32 @@ const folderLabel = document.querySelector("#folderLabel");
 const fetchSpotifyButton = document.querySelector("#fetchSpotifyButton");
 const spotifyStatus = document.querySelector("#spotifyStatus");
 const folderPreviewName = document.querySelector("#folderPreviewName");
-const preferencesModal = document.querySelector("#preferencesModal");
-const closePreferencesButton = document.querySelector("#closePreferencesButton");
 const removeMetadataCount = document.querySelector("#removeMetadataCount");
 const removeMetadataOptions = document.querySelector("#removeMetadataOptions");
 const fileCount = document.querySelector("#fileCount");
 const fileTableBody = document.querySelector("#fileTableBody");
 
-const removableMetadataFields = [
-  ["ALBUMSORT", "Album sort"],
-  ["ALBUMARTISTSORT", "Album artist sort"],
-  ["BARCODE", "Barcode"],
-  ["CATALOGNUMBER", "Catalog number"],
-  ["COMMENT", "Comment"],
-  ["COMPILATION", "Compilation"],
-  ["COMPOSER", "Composer"],
-  ["CONDUCTOR", "Conductor"],
-  ["COPYRIGHT", "Copyright"],
-  ["DESCRIPTION", "Description"],
-  ["DISCTOTAL", "Disc total"],
-  ["DISCNUMBER", "Disc number"],
-  ["ENCODEDBY", "Encoded by"],
-  ["ENCODER", "Encoder"],
-  ["GENRE", "Genre"],
-  ["ISRC", "ISRC"],
-  ["LABEL", "Label"],
-  ["LYRICIST", "Lyricist"],
-  ["MUSICBRAINZ_ALBUMARTISTID", "MusicBrainz album artist ID"],
-  ["MUSICBRAINZ_ALBUMID", "MusicBrainz album ID"],
-  ["MUSICBRAINZ_ARTISTID", "MusicBrainz artist ID"],
-  ["MUSICBRAINZ_RELEASEGROUPID", "MusicBrainz release group ID"],
-  ["MUSICBRAINZ_TRACKID", "MusicBrainz track ID"],
-  ["MUSICBRAINZ_WORKID", "MusicBrainz work ID"],
-  ["ORGANIZATION", "Organization"],
-  ["PUBLISHER", "Publisher"],
-  ["REPLAYGAIN_ALBUM_GAIN", "ReplayGain album gain"],
-  ["REPLAYGAIN_ALBUM_PEAK", "ReplayGain album peak"],
-  ["REPLAYGAIN_TRACK_GAIN", "ReplayGain track gain"],
-  ["REPLAYGAIN_TRACK_PEAK", "ReplayGain track peak"],
-  ["SOURCE", "Source"],
-  ["TITLESORT", "Title sort"],
-  ["TOOL", "Tool"],
-  ["TRACKTOTAL", "Track total"],
-  ["TRACKNUMBER", "Track number"],
-  ["UPC", "UPC"],
-  ["URL", "URL"],
-  ["WEBSITE", "Website"]
-].map(([value, label]) => ({
+const xiphDefaultMetadataFields = [
+  "VERSION",
+  "PERFORMER",
+  "COPYRIGHT",
+  "LICENSE",
+  "ORGANIZATION",
+  "DESCRIPTION",
+  "LOCATION",
+  "CONTACT",
+  "ISRC"
+].map((value) => ({
   value,
-  label: label.toUpperCase()
+  label: value
 }));
 
 const metadataLabelOverrides = new Map(
-  removableMetadataFields.map((field) => [
-    normalizeMetadataKey(field.value),
-    field.label
+  [
+    ["ISRC", "ISRC"]
+  ].map(([value, label]) => [
+    normalizeMetadataKey(value),
+    label
   ])
 );
 
@@ -117,15 +88,6 @@ function isPointerOverElement(element) {
     lastPointerPosition.y >= rect.top &&
     lastPointerPosition.y <= rect.bottom
   );
-}
-
-function openPreferences() {
-  preferencesModal.hidden = false;
-  closePreferencesButton.focus();
-}
-
-function closePreferences() {
-  preferencesModal.hidden = true;
 }
 
 function cleanFileName(name) {
@@ -253,6 +215,12 @@ function createMetadataSection(title) {
 function renderRemoveMetadataOptions() {
   const options = getAvailableRemoveMetadataFields();
 
+  selectedRemoveMetadataFields = new Set(
+    [...selectedRemoveMetadataFields].filter((field) =>
+      options.some((option) => normalizeMetadataKey(option.value) === normalizeMetadataKey(field))
+    )
+  );
+
   options.forEach((field) => {
     selectedRemoveMetadataFields.add(field.value);
   });
@@ -288,7 +256,7 @@ function renderRemoveMetadataOptions() {
 function getAvailableRemoveMetadataFields() {
   const fieldsByKey = new Map();
 
-  removableMetadataFields.forEach((field) => {
+  xiphDefaultMetadataFields.forEach((field) => {
     fieldsByKey.set(normalizeMetadataKey(field.value), field);
   });
 
@@ -307,17 +275,6 @@ function getAvailableRemoveMetadataFields() {
         });
       }
     });
-  });
-
-  [...selectedRemoveMetadataFields].forEach((field) => {
-    const normalizedKey = normalizeMetadataKey(field);
-
-    if (!fieldsByKey.has(normalizedKey)) {
-      fieldsByKey.set(normalizedKey, {
-        label: formatMetadataLabel(field),
-        value: field
-      });
-    }
   });
 
   return [...fieldsByKey.values()].sort((a, b) => a.label.localeCompare(b.label));
@@ -345,11 +302,9 @@ function isKeyMetadataTag(key) {
     "album",
     "artist",
     "albumartist",
-    "disc",
     "date",
-    "discnumber",
-    "track",
-    "tracknumber"
+    "disc",
+    "track"
   ]);
 
   return keyMetadataTags.has(normalizeMetadataKey(key));
@@ -364,10 +319,10 @@ function renderMetadataTooltipContent(tooltip, file) {
     ["Title", currentMetadata.title, targetMetadata.title],
     ["Album", currentMetadata.album, targetMetadata.album],
     ["Artist", currentMetadata.artist, targetMetadata.artist],
-    ["Album artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
+    ["Album Artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
     ["Date", currentMetadata.date, targetMetadata.date],
-    ["Disc", currentMetadata.discNumber, targetMetadata.discNumber],
-    ["Track", currentMetadata.trackNumber, targetMetadata.trackNumber]
+    ["DISC", currentMetadata.disc, targetMetadata.disc],
+    ["TRACK", currentMetadata.track, targetMetadata.track]
   ];
   const rawTags = getSortedRawTags(currentMetadata.rawTags).filter(([key]) => !isKeyMetadataTag(key));
 
@@ -599,28 +554,12 @@ fetchSpotifyButton.addEventListener("click", async () => {
   }
 });
 
-closePreferencesButton.addEventListener("click", closePreferences);
-
-preferencesModal.addEventListener("click", (event) => {
-  if (event.target === preferencesModal) {
-    closePreferences();
-  }
-});
-
-window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !preferencesModal.hidden) {
-    closePreferences();
-  }
-});
-
 window.addEventListener("pointermove", (event) => {
   lastPointerPosition = {
     x: event.clientX,
     y: event.clientY
   };
 });
-
-window.musicMetadataSync.onOpenPreferences(openPreferences);
 
 applyButton.addEventListener("click", async () => {
   applyButton.disabled = true;
