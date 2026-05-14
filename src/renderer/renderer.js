@@ -78,7 +78,7 @@ function createMetadataLine(label, currentValue, targetValue) {
   const targetText = formatMetadataValue(targetValue);
 
   row.className = "metadata-tooltip-row";
-  labelElement.textContent = label;
+  labelElement.textContent = label.toUpperCase();
 
   if (targetValue !== undefined && currentText !== targetText) {
     const oldValue = document.createElement("span");
@@ -99,20 +99,119 @@ function createMetadataLine(label, currentValue, targetValue) {
   return row;
 }
 
+function createMetadataSection(title) {
+  const section = document.createElement("div");
+  const heading = document.createElement("h3");
+
+  section.className = "metadata-tooltip-section";
+  heading.textContent = title;
+  section.append(heading);
+  return section;
+}
+
+function getSortedRawTags(rawTags = {}) {
+  return Object.entries(rawTags)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
+}
+
+function normalizeMetadataKey(key) {
+  return String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isKeyMetadataTag(key) {
+  const keyMetadataTags = new Set([
+    "title",
+    "album",
+    "artist",
+    "albumartist",
+    "date",
+    "year",
+    "genre",
+    "disc",
+    "discnumber",
+    "discnumber",
+    "track",
+    "tracknumber"
+  ]);
+
+  return keyMetadataTags.has(normalizeMetadataKey(key));
+}
+
+function formatMetadataLabel(key) {
+  const labelOverrides = new Map([
+    ["barcode", "Barcode"],
+    ["catalognumber", "Catalog number"],
+    ["comment", "Comment"],
+    ["compilation", "Compilation"],
+    ["composer", "Composer"],
+    ["conductor", "Conductor"],
+    ["copyright", "Copyright"],
+    ["description", "Description"],
+    ["disctotal", "Disc total"],
+    ["discnumber", "Disc number"],
+    ["encodedby", "Encoded by"],
+    ["encoder", "Encoder"],
+    ["genre", "Genre"],
+    ["isrc", "ISRC"],
+    ["label", "Label"],
+    ["lyricist", "Lyricist"],
+    ["musicbrainzalbumartistid", "MusicBrainz album artist ID"],
+    ["musicbrainzalbumid", "MusicBrainz album ID"],
+    ["musicbrainzartistid", "MusicBrainz artist ID"],
+    ["musicbrainzreleasegroupid", "MusicBrainz release group ID"],
+    ["musicbrainztrackid", "MusicBrainz track ID"],
+    ["musicbrainzworkid", "MusicBrainz work ID"],
+    ["organization", "Organization"],
+    ["publisher", "Publisher"],
+    ["replaygainalbumgain", "ReplayGain album gain"],
+    ["replaygainalbumpeak", "ReplayGain album peak"],
+    ["replaygaintrackgain", "ReplayGain track gain"],
+    ["replaygaintrackpeak", "ReplayGain track peak"],
+    ["spotifyalbumid", "Spotify album ID"],
+    ["spotifyartistid", "Spotify artist ID"],
+    ["spotifytrackid", "Spotify track ID"],
+    ["titlesort", "Title sort"],
+    ["tracktotal", "Track total"],
+    ["tracknumber", "Track number"],
+    ["upc", "UPC"],
+    ["url", "URL"],
+    ["website", "Website"]
+  ]);
+  const normalizedKey = normalizeMetadataKey(key);
+
+  if (labelOverrides.has(normalizedKey)) {
+    return labelOverrides.get(normalizedKey).toUpperCase();
+  }
+
+  return String(key || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .toUpperCase();
+}
+
 function createMetadataTooltip(file) {
   const wrapper = document.createElement("div");
   const button = document.createElement("button");
   const tooltip = document.createElement("div");
   const currentMetadata = file.metadata || {};
   const targetMetadata = file.spotifyMetadata || {};
-  const rows = [
+  const keySection = createMetadataSection("PRIMARY METADATA");
+  const otherSection = createMetadataSection("ADDITIONAL METADATA");
+  const keyRows = [
     ["Title", currentMetadata.title, targetMetadata.title],
     ["Album", currentMetadata.album, targetMetadata.album],
     ["Artist", currentMetadata.artist, targetMetadata.artist],
     ["Album artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
+    ["Date", currentMetadata.date, targetMetadata.date],
+    ["Genre", currentMetadata.genre, targetMetadata.genre],
     ["Disc", currentMetadata.discNumber, targetMetadata.discNumber],
     ["Track", currentMetadata.trackNumber, targetMetadata.trackNumber]
   ];
+  const rawTags = getSortedRawTags(currentMetadata.rawTags).filter(([key]) => !isKeyMetadataTag(key));
 
   wrapper.className = "metadata-popover";
   button.className = "metadata-button";
@@ -122,9 +221,19 @@ function createMetadataTooltip(file) {
   tooltip.className = "metadata-tooltip";
   tooltip.setAttribute("role", "tooltip");
 
-  rows.forEach(([label, currentValue, targetValue]) => {
-    tooltip.append(createMetadataLine(label, currentValue, file.spotifyMetadata ? targetValue : undefined));
+  keyRows.forEach(([label, currentValue, targetValue]) => {
+    keySection.append(createMetadataLine(label, currentValue, file.spotifyMetadata ? targetValue : undefined));
   });
+
+  if (rawTags.length === 0) {
+    otherSection.append(createMetadataLine("Tags", "empty"));
+  } else {
+    rawTags.forEach(([key, value]) => {
+      otherSection.append(createMetadataLine(formatMetadataLabel(key), value));
+    });
+  }
+
+  tooltip.append(keySection, otherSection);
 
   function showTooltip() {
     const rect = button.getBoundingClientRect();

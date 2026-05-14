@@ -61,6 +61,7 @@ async function readAudioMetadata(filePath) {
     const disc = getFirstTagValue(tags, ["disc", "discnumber", "disc_number"]);
 
     return {
+      rawTags: tags,
       track,
       trackNumber: parseTrackNumber(track),
       disc,
@@ -68,10 +69,13 @@ async function readAudioMetadata(filePath) {
       title: getFirstTagValue(tags, ["title"]),
       artist: getFirstTagValue(tags, ["artist"]),
       albumArtist: getFirstTagValue(tags, ["album_artist", "albumartist"]),
-      album: getFirstTagValue(tags, ["album"])
+      album: getFirstTagValue(tags, ["album"]),
+      date: getFirstTagValue(tags, ["date", "year"]),
+      genre: getFirstTagValue(tags, ["genre"])
     };
   } catch {
     return {
+      rawTags: {},
       track: "",
       trackNumber: null,
       disc: "",
@@ -79,7 +83,9 @@ async function readAudioMetadata(filePath) {
       title: "",
       artist: "",
       albumArtist: "",
-      album: ""
+      album: "",
+      date: "",
+      genre: ""
     };
   }
 }

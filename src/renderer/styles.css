@@ -281,7 +281,10 @@ td span {
   color: #ffffff;
   display: none;
   gap: 8px;
+  max-height: min(520px, calc(100vh - 24px));
   min-width: 340px;
+  max-width: 520px;
+  overflow-y: auto;
   padding: 12px;
   pointer-events: none;
   position: fixed;
@@ -298,7 +301,26 @@ td span {
 .metadata-tooltip-row {
   display: grid;
   gap: 10px;
-  grid-template-columns: 82px minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
+}
+
+.metadata-tooltip-section {
+  display: grid;
+  gap: 8px;
+}
+
+.metadata-tooltip-section + .metadata-tooltip-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
+.metadata-tooltip-section h3 {
+  color: #dce7e1;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin: 0;
 }
 
 .metadata-tooltip-row span {

@@ -59,7 +59,9 @@ function normalizeSpotifyTrack(track, album) {
     title: track.name,
     artist,
     albumArtist,
-    album: album.name
+    album: album.name,
+    date: album.release_date || "",
+    genre: album.genres?.join(", ") || ""
   };
 }
 
