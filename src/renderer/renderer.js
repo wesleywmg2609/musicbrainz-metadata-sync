@@ -6,12 +6,39 @@ const albumInput = document.querySelector("#albumInput");
 const fetchSpotifyButton = document.querySelector("#fetchSpotifyButton");
 const spotifyStatus = document.querySelector("#spotifyStatus");
 const folderPreviewName = document.querySelector("#folderPreviewName");
+const preferencesModal = document.querySelector("#preferencesModal");
+const closePreferencesButton = document.querySelector("#closePreferencesButton");
+const removeMetadataCount = document.querySelector("#removeMetadataCount");
+const removeMetadataOptions = document.querySelector("#removeMetadataOptions");
 const fileCount = document.querySelector("#fileCount");
 const fileTableBody = document.querySelector("#fileTableBody");
+
+const removableMetadataFields = [
+  { label: "COMMENT", value: "COMMENT" },
+  { label: "DESCRIPTION", value: "DESCRIPTION" },
+  { label: "ENCODER", value: "ENCODER" },
+  { label: "WEBSITE", value: "WEBSITE" },
+  { label: "URL", value: "URL" },
+  { label: "SOURCE", value: "SOURCE" },
+  { label: "ORGANIZATION", value: "ORGANIZATION" },
+  { label: "COPYRIGHT", value: "COPYRIGHT" },
+  { label: "PUBLISHER", value: "PUBLISHER" },
+  { label: "LABEL", value: "LABEL" }
+];
 
 let selectedFiles = [];
 let selectedFolderPath = "";
 let spotifyAlbum = null;
+let selectedRemoveMetadataFields = new Set();
+
+function openPreferences() {
+  preferencesModal.hidden = false;
+  closePreferencesButton.focus();
+}
+
+function closePreferences() {
+  preferencesModal.hidden = true;
+}
 
 function cleanFileName(name) {
   return name
@@ -62,35 +89,41 @@ function getPreviewMetadata(file) {
   return file?.spotifyMetadata || file?.metadata || {};
 }
 
-function formatMetadataValue(value) {
+function formatMetadataValue(value, options = {}) {
   if (value === null || value === undefined || value === "") {
-    return "empty";
+    return options.blankEmpty ? "" : "empty";
   }
 
   return String(value);
 }
 
-function createMetadataLine(label, currentValue, targetValue) {
+function createMetadataLine(label, currentValue, targetValue, options = {}) {
   const row = document.createElement("div");
   const labelElement = document.createElement("span");
   const valueElement = document.createElement("strong");
-  const currentText = formatMetadataValue(currentValue);
-  const targetText = formatMetadataValue(targetValue);
+  const currentText = formatMetadataValue(currentValue, options);
+  const targetText = formatMetadataValue(targetValue, options);
 
   row.className = "metadata-tooltip-row";
   labelElement.textContent = label.toUpperCase();
 
   if (targetValue !== undefined && currentText !== targetText) {
     const oldValue = document.createElement("span");
-    const newValue = document.createElement("span");
 
     row.classList.add("metadata-change");
     valueElement.className = "metadata-change-values";
     oldValue.className = "metadata-old-value";
-    newValue.className = "metadata-new-value";
     oldValue.textContent = currentText;
-    newValue.textContent = targetText;
-    valueElement.append(oldValue, newValue);
+
+    if (targetText === "empty") {
+      valueElement.append(oldValue);
+    } else {
+      const newValue = document.createElement("span");
+
+      newValue.className = "metadata-new-value";
+      newValue.textContent = targetText;
+      valueElement.append(oldValue, newValue);
+    }
   } else {
     valueElement.textContent = currentText;
   }
@@ -109,6 +142,79 @@ function createMetadataSection(title) {
   return section;
 }
 
+function renderRemoveMetadataOptions() {
+  const options = getAvailableRemoveMetadataFields();
+
+  options.forEach((field) => {
+    selectedRemoveMetadataFields.add(field.value);
+  });
+
+  removeMetadataOptions.replaceChildren();
+
+  options.forEach((field) => {
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    const text = document.createElement("span");
+
+    label.className = "checkbox-option";
+    checkbox.type = "checkbox";
+    checkbox.value = field.value;
+    checkbox.checked = selectedRemoveMetadataFields.has(field.value);
+    text.textContent = field.label;
+
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        selectedRemoveMetadataFields.add(field.value);
+      } else {
+        selectedRemoveMetadataFields.delete(field.value);
+      }
+
+      renderFiles();
+    });
+
+    label.append(checkbox, text);
+    removeMetadataOptions.append(label);
+  });
+}
+
+function getAvailableRemoveMetadataFields() {
+  const fieldsByKey = new Map();
+
+  removableMetadataFields.forEach((field) => {
+    fieldsByKey.set(normalizeMetadataKey(field.value), field);
+  });
+
+  selectedFiles.forEach((file) => {
+    Object.keys(file.metadata?.rawTags || {}).forEach((key) => {
+      const normalizedKey = normalizeMetadataKey(key);
+
+      if (isKeyMetadataTag(key)) {
+        return;
+      }
+
+      if (!fieldsByKey.has(normalizedKey)) {
+        fieldsByKey.set(normalizedKey, {
+          label: formatMetadataLabel(key),
+          value: key
+        });
+      }
+    });
+  });
+
+  [...selectedRemoveMetadataFields].forEach((field) => {
+    const normalizedKey = normalizeMetadataKey(field);
+
+    if (!fieldsByKey.has(normalizedKey)) {
+      fieldsByKey.set(normalizedKey, {
+        label: formatMetadataLabel(field),
+        value: field
+      });
+    }
+  });
+
+  return [...fieldsByKey.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
 function getSortedRawTags(rawTags = {}) {
   return Object.entries(rawTags)
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
@@ -119,15 +225,18 @@ function normalizeMetadataKey(key) {
   return String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function shouldRemoveMetadataField(key) {
+  const normalizedKey = normalizeMetadataKey(key);
+
+  return [...selectedRemoveMetadataFields].some((field) => normalizeMetadataKey(field) === normalizedKey);
+}
+
 function isKeyMetadataTag(key) {
   const keyMetadataTags = new Set([
     "title",
     "album",
     "artist",
     "albumartist",
-    "date",
-    "year",
-    "genre",
     "disc",
     "discnumber",
     "discnumber",
@@ -206,8 +315,6 @@ function createMetadataTooltip(file) {
     ["Album", currentMetadata.album, targetMetadata.album],
     ["Artist", currentMetadata.artist, targetMetadata.artist],
     ["Album artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
-    ["Date", currentMetadata.date, targetMetadata.date],
-    ["Genre", currentMetadata.genre, targetMetadata.genre],
     ["Disc", currentMetadata.discNumber, targetMetadata.discNumber],
     ["Track", currentMetadata.trackNumber, targetMetadata.trackNumber]
   ];
@@ -222,14 +329,17 @@ function createMetadataTooltip(file) {
   tooltip.setAttribute("role", "tooltip");
 
   keyRows.forEach(([label, currentValue, targetValue]) => {
-    keySection.append(createMetadataLine(label, currentValue, file.spotifyMetadata ? targetValue : undefined));
+    keySection.append(createMetadataLine(label, currentValue, file.spotifyMetadata ? targetValue : undefined, {
+      blankEmpty: true
+    }));
   });
 
   if (rawTags.length === 0) {
     otherSection.append(createMetadataLine("Tags", "empty"));
   } else {
     rawTags.forEach(([key, value]) => {
-      otherSection.append(createMetadataLine(formatMetadataLabel(key), value));
+      const targetValue = shouldRemoveMetadataField(key) ? "" : undefined;
+      otherSection.append(createMetadataLine(formatMetadataLabel(key), value, targetValue));
     });
   }
 
@@ -267,6 +377,7 @@ function createMetadataTooltip(file) {
 
 function renderFiles() {
   fileCount.textContent = `${selectedFiles.length} ${selectedFiles.length === 1 ? "file" : "files"}`;
+  removeMetadataCount.textContent = `${selectedRemoveMetadataFields.size} ${selectedRemoveMetadataFields.size === 1 ? "field" : "fields"} selected`;
   folderPreviewName.textContent = buildFolderName() || "Selected folder name stays unchanged until artist and album are set.";
   applyButton.disabled = !selectedFolderPath || selectedFiles.length === 0;
   fileTableBody.replaceChildren();
@@ -321,6 +432,7 @@ chooseFolderButton.addEventListener("click", async () => {
       spotifyAlbum = null;
       spotifyStatus.textContent = "Spotify metadata not loaded.";
       fillSearchFieldsFromLocalMetadata(selectedFiles);
+      renderRemoveMetadataOptions();
       renderFiles();
     }
   } finally {
@@ -404,6 +516,22 @@ fetchSpotifyButton.addEventListener("click", async () => {
   }
 });
 
+closePreferencesButton.addEventListener("click", closePreferences);
+
+preferencesModal.addEventListener("click", (event) => {
+  if (event.target === preferencesModal) {
+    closePreferences();
+  }
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !preferencesModal.hidden) {
+    closePreferences();
+  }
+});
+
+window.musicMetadataSync.onOpenPreferences(openPreferences);
+
 applyButton.addEventListener("click", async () => {
   applyButton.disabled = true;
   applyButton.textContent = "Applying...";
@@ -411,12 +539,14 @@ applyButton.addEventListener("click", async () => {
   try {
     const result = await window.musicMetadataSync.applyFolderWorkflow({
       folderPath: selectedFolderPath,
-      folderName: buildFolderName()
+      folderName: buildFolderName(),
+      metadataFieldsToRemove: [...selectedRemoveMetadataFields]
     });
 
     selectedFolderPath = result.folderPath;
     folderLabel.textContent = result.folderPath;
     selectedFiles = result.files;
+    renderRemoveMetadataOptions();
     renderFiles();
   } catch (error) {
     window.alert(error.message);
@@ -429,3 +559,5 @@ applyButton.addEventListener("click", async () => {
 [artistInput, albumInput].forEach((input) => {
   input.addEventListener("input", renderFiles);
 });
+
+renderRemoveMetadataOptions();

@@ -49,7 +49,7 @@
               <tr>
                 <th>Current file</th>
                 <th>Target file</th>
-                <th>Metadata</th>
+                <th class="metadata-header">Metadata</th>
               </tr>
             </thead>
             <tbody id="fileTableBody">
@@ -61,6 +61,22 @@
         </div>
       </section>
     </main>
+
+    <div id="preferencesModal" class="modal-backdrop" hidden>
+      <section class="settings-panel preferences-panel" aria-label="Preferences" role="dialog" aria-modal="true">
+        <div class="settings-header">
+          <div>
+            <h2>Preferences</h2>
+            <p>Choose metadata fields to remove when applying changes.</p>
+          </div>
+          <button id="closePreferencesButton" class="icon-button" type="button" aria-label="Close preferences">×</button>
+        </div>
+        <fieldset>
+          <span id="removeMetadataCount">0 fields selected</span>
+          <div id="removeMetadataOptions" class="checkbox-grid"></div>
+        </fieldset>
+      </section>
+    </div>
 
     <script src="./renderer.js"></script>
   </body>

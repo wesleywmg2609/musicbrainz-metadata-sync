@@ -19,6 +19,7 @@ The app currently previews Spotify metadata. It does not write Spotify tags into
 - Node.js
 - npm
 - FFmpeg / `ffprobe`
+- FLAC tools / `metaflac` for removing FLAC metadata fields
 - Spotify Developer app credentials
 
 ## Setup

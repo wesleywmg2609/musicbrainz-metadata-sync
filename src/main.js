@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
 const path = require("node:path");
 const { loadDotEnv } = require("./main/env");
 const { applyFolderWorkflow, getFolderAudioFiles } = require("./main/folderWorkflow");
@@ -21,6 +21,60 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  return mainWindow;
+}
+
+function createAppMenu(mainWindow) {
+  const template = [
+    {
+      label: "File",
+      submenu: [
+        { role: "quit" }
+      ]
+    },
+    {
+      label: "Edit",
+      submenu: [
+        {
+          label: "Preferences",
+          accelerator: "CmdOrCtrl+,",
+          click: () => {
+            mainWindow.webContents.send("preferences:open");
+          }
+        },
+        { type: "separator" },
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" }
+      ]
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" }
+      ]
+    },
+    {
+      label: "Window",
+      submenu: [
+        { role: "minimize" },
+        { role: "close" }
+      ]
+    }
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 ipcMain.handle("folder:choose", async () => {
@@ -50,11 +104,13 @@ ipcMain.handle("spotify:album", async (_event, payload) => {
 });
 
 app.whenReady().then(() => {
-  createWindow();
+  const mainWindow = createWindow();
+  createAppMenu(mainWindow);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      const newWindow = createWindow();
+      createAppMenu(newWindow);
     }
   });
 });
