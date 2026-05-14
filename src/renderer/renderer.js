@@ -3,7 +3,6 @@ const applyButton = document.querySelector("#applyButton");
 const folderLabel = document.querySelector("#folderLabel");
 const artistInput = document.querySelector("#artistInput");
 const albumInput = document.querySelector("#albumInput");
-const trackStartInput = document.querySelector("#trackStartInput");
 const fetchSpotifyButton = document.querySelector("#fetchSpotifyButton");
 const spotifyStatus = document.querySelector("#spotifyStatus");
 const folderPreviewName = document.querySelector("#folderPreviewName");
@@ -63,27 +62,98 @@ function getPreviewMetadata(file) {
   return file?.spotifyMetadata || file?.metadata || {};
 }
 
-function getPaddedTrackNumber(index) {
-  const metadataTrack = getPreviewMetadata(selectedFiles[index])?.trackNumber;
-
-  if (Number.isFinite(metadataTrack)) {
-    return String(metadataTrack).padStart(2, "0");
+function formatMetadataValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "empty";
   }
 
-  const trackStart = Number.parseInt(trackStartInput.value, 10);
-  const trackNumber = Number.isFinite(trackStart) ? trackStart + index : index + 1;
-
-  return String(trackNumber).padStart(2, "0");
+  return String(value);
 }
 
-function getPaddedDiscNumber(file) {
-  const metadataDisc = getPreviewMetadata(file)?.discNumber;
+function createMetadataLine(label, currentValue, targetValue) {
+  const row = document.createElement("div");
+  const labelElement = document.createElement("span");
+  const valueElement = document.createElement("strong");
+  const currentText = formatMetadataValue(currentValue);
+  const targetText = formatMetadataValue(targetValue);
 
-  if (Number.isFinite(metadataDisc)) {
-    return String(metadataDisc).padStart(2, "0");
+  row.className = "metadata-tooltip-row";
+  labelElement.textContent = label;
+
+  if (targetValue !== undefined && currentText !== targetText) {
+    const oldValue = document.createElement("span");
+    const newValue = document.createElement("span");
+
+    row.classList.add("metadata-change");
+    valueElement.className = "metadata-change-values";
+    oldValue.className = "metadata-old-value";
+    newValue.className = "metadata-new-value";
+    oldValue.textContent = currentText;
+    newValue.textContent = targetText;
+    valueElement.append(oldValue, newValue);
+  } else {
+    valueElement.textContent = currentText;
   }
 
-  return "";
+  row.append(labelElement, valueElement);
+  return row;
+}
+
+function createMetadataTooltip(file) {
+  const wrapper = document.createElement("div");
+  const button = document.createElement("button");
+  const tooltip = document.createElement("div");
+  const currentMetadata = file.metadata || {};
+  const targetMetadata = file.spotifyMetadata || {};
+  const rows = [
+    ["Title", currentMetadata.title, targetMetadata.title],
+    ["Album", currentMetadata.album, targetMetadata.album],
+    ["Artist", currentMetadata.artist, targetMetadata.artist],
+    ["Album artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
+    ["Disc", currentMetadata.discNumber, targetMetadata.discNumber],
+    ["Track", currentMetadata.trackNumber, targetMetadata.trackNumber]
+  ];
+
+  wrapper.className = "metadata-popover";
+  button.className = "metadata-button";
+  button.type = "button";
+  button.setAttribute("aria-label", `View metadata for ${file.name}`);
+  button.textContent = "i";
+  tooltip.className = "metadata-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+
+  rows.forEach(([label, currentValue, targetValue]) => {
+    tooltip.append(createMetadataLine(label, currentValue, file.spotifyMetadata ? targetValue : undefined));
+  });
+
+  function showTooltip() {
+    const rect = button.getBoundingClientRect();
+
+    document.body.append(tooltip);
+    tooltip.classList.add("is-visible");
+
+    const margin = 12;
+    const centeredTop = rect.top + (rect.height / 2) - (tooltip.offsetHeight / 2);
+    const maxTop = window.innerHeight - tooltip.offsetHeight - margin;
+    const top = Math.min(Math.max(margin, centeredTop), maxTop);
+    const left = Math.max(margin, rect.left - tooltip.offsetWidth - margin);
+
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
+
+  function hideTooltip() {
+    tooltip.classList.remove("is-visible");
+    tooltip.remove();
+  }
+
+  button.addEventListener("mouseenter", showTooltip);
+  button.addEventListener("focus", showTooltip);
+  button.addEventListener("mouseleave", hideTooltip);
+  button.addEventListener("blur", hideTooltip);
+
+  wrapper.append(button);
+  return wrapper;
 }
 
 function renderFiles() {
@@ -96,7 +166,7 @@ function renderFiles() {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
     cell.className = "empty-state";
-    cell.colSpan = 8;
+    cell.colSpan = 3;
     cell.textContent = "No audio files found in this folder.";
     row.append(cell);
     fileTableBody.append(row);
@@ -105,37 +175,25 @@ function renderFiles() {
 
   selectedFiles.forEach((file, index) => {
     const row = document.createElement("tr");
-    const discCell = document.createElement("td");
-    const trackCell = document.createElement("td");
     const currentCell = document.createElement("td");
     const targetCell = document.createElement("td");
-    const titleCell = document.createElement("td");
-    const albumCell = document.createElement("td");
-    const artistCell = document.createElement("td");
-    const albumArtistCell = document.createElement("td");
+    const metadataCell = document.createElement("td");
     const currentFileName = document.createElement("strong");
     const currentFileLocation = document.createElement("span");
     const targetFileName = document.createElement("strong");
     const targetFileLocation = document.createElement("span");
-    const metadata = getPreviewMetadata(file);
 
-    discCell.className = "disc-cell";
-    discCell.textContent = getPaddedDiscNumber(file);
-    trackCell.className = "track-cell";
-    trackCell.textContent = getPaddedTrackNumber(index);
     currentFileName.textContent = file.name;
     currentFileLocation.textContent = file.folder;
     targetFileName.textContent = buildPreviewName(file);
     targetFileLocation.textContent = buildTargetFolderPath();
-    titleCell.textContent = metadata.title || "";
-    albumCell.textContent = metadata.album || "";
-    artistCell.textContent = metadata.artist || "";
-    albumArtistCell.textContent = metadata.albumArtist || "";
+    metadataCell.className = "metadata-cell";
+    metadataCell.append(createMetadataTooltip(file));
 
     currentCell.append(currentFileName, currentFileLocation);
     targetCell.append(targetFileName, targetFileLocation);
 
-    row.append(discCell, trackCell, currentCell, targetCell, titleCell, albumCell, artistCell, albumArtistCell);
+    row.append(currentCell, targetCell, metadataCell);
     fileTableBody.append(row);
   });
 }
@@ -259,6 +317,6 @@ applyButton.addEventListener("click", async () => {
   }
 });
 
-[artistInput, albumInput, trackStartInput].forEach((input) => {
+[artistInput, albumInput].forEach((input) => {
   input.addEventListener("input", renderFiles);
 });
