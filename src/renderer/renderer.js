@@ -137,10 +137,6 @@ function buildPreviewName(file) {
   return `${track}. ${title}${extension}`;
 }
 
-function getPreviewMetadata(file) {
-  return file?.fetchedMetadata || file?.metadata || {};
-}
-
 function formatMetadataValue(value, options = {}) {
   if (value === null || value === undefined || value === "") {
     return options.blankEmpty ? "" : "empty";
@@ -213,14 +209,8 @@ function createMetadataSection(title) {
   return section;
 }
 
-function getSortedRawTags(rawTags = {}) {
-  return Object.entries(rawTags)
-    .filter(([, value]) => value !== null && value !== undefined && value !== "")
-    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
-}
-
-function getSortedFlacTags(flacTags = {}) {
-  return Object.entries(flacTags)
+function getSortedMetadataEntries(metadata = {}) {
+  return Object.entries(metadata)
     .filter(([, value]) => {
       const values = Array.isArray(value) ? value : [value];
 
@@ -265,9 +255,9 @@ function renderMetadataTooltipContent(tooltip, file) {
     ["DISC", currentMetadata.disc, targetMetadata.disc],
     ["TRACK", currentMetadata.track, targetMetadata.track]
   ];
-  const rawTags = getSortedRawTags(currentMetadata.rawTags).filter(([key]) => !isKeyMetadataTag(key));
+  const rawTags = getSortedMetadataEntries(currentMetadata.rawTags).filter(([key]) => !isKeyMetadataTag(key));
   const rawTagsByKey = new Map(rawTags.map(([key, value]) => [normalizeMetadataKey(key), value]));
-  const flacTags = getSortedFlacTags(targetMetadata.flacTags).filter(([key]) => !isKeyMetadataTag(key));
+  const flacTags = getSortedMetadataEntries(targetMetadata.flacTags).filter(([key]) => !isKeyMetadataTag(key));
 
   tooltip.replaceChildren();
 
@@ -338,15 +328,6 @@ function createMetadataTooltip(file, fileIndex) {
       fileIndex
     };
     positionMetadataTooltip(tooltip, rect);
-  }
-
-  function hideTooltip() {
-    if (activeMetadataTooltip?.element === tooltip) {
-      hideActiveMetadataTooltip();
-      return;
-    }
-
-    tooltip.remove();
   }
 
   button.addEventListener("click", (event) => {

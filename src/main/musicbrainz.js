@@ -95,6 +95,14 @@ function getReleaseGroupTypes(releaseGroup) {
   ].filter(Boolean);
 }
 
+function getTrackArtist(track, release) {
+  const recording = track.recording || {};
+
+  return getArtistCreditName(recording["artist-credit"]) ||
+    getArtistCreditName(track["artist-credit"]) ||
+    getArtistCreditName(release["artist-credit"]);
+}
+
 function appendTag(tags, field, value) {
   const values = (Array.isArray(value) ? value : [value])
     .map((item) => String(item || "").trim())
@@ -103,6 +111,12 @@ function appendTag(tags, field, value) {
   if (values.length > 0) {
     tags[field] = values.length === 1 ? values[0] : [...new Set(values)];
   }
+}
+
+function appendTags(tags, entries) {
+  entries.forEach(([field, value]) => {
+    appendTag(tags, field, value);
+  });
 }
 
 function scoreMusicBrainzRelease(candidate, artist, album) {
@@ -191,44 +205,45 @@ function buildMusicBrainzFlacTags(track, release, medium, disc, discNumber, genr
     ? recordingArtistIds
     : getArtistCreditIds(track["artist-credit"]);
   const albumArtistIds = getArtistCreditIds(release["artist-credit"]);
-  const artist = getArtistCreditName(recording["artist-credit"]) ||
-    getArtistCreditName(track["artist-credit"]) ||
-    getArtistCreditName(release["artist-credit"]);
+  const releaseTypes = getReleaseGroupTypes(releaseGroup);
+  const artist = getTrackArtist(track, release);
   const albumArtist = getArtistCreditName(release["artist-credit"]);
   const tags = {};
 
-  appendTag(tags, "TITLE", recording.title || track.title);
-  appendTag(tags, "ARTIST", artist);
-  appendTag(tags, "ALBUM", release.title);
-  appendTag(tags, "ALBUMARTIST", albumArtist);
-  appendTag(tags, "DATE", release.date);
-  appendTag(tags, "GENRE", genre);
-  appendTag(tags, "TRACKNUMBER", track.number);
-  appendTag(tags, "DISC", disc);
-  appendTag(tags, "MUSICBRAINZ_ALBUMID", release.id);
-  appendTag(tags, "MUSICBRAINZ_RELEASEGROUPID", releaseGroup.id);
-  appendTag(tags, "MUSICBRAINZ_TRACKID", recording.id);
-  appendTag(tags, "MUSICBRAINZ_RELEASETRACKID", track.id);
-  appendTag(tags, "MUSICBRAINZ_ARTISTID", artistIds);
-  appendTag(tags, "MUSICBRAINZ_ALBUMARTISTID", albumArtistIds);
-  appendTag(tags, "MUSICBRAINZ_ALBUMSTATUS", release.status);
-  appendTag(tags, "MUSICBRAINZ_ALBUMTYPE", getReleaseGroupTypes(releaseGroup));
-  appendTag(tags, "RELEASETYPE", getReleaseGroupTypes(releaseGroup));
-  appendTag(tags, "RELEASESTATUS", release.status);
-  appendTag(tags, "RELEASECOUNTRY", release.country);
-  appendTag(tags, "RELEASEDATE", release.date);
-  appendTag(tags, "ORIGINALDATE", releaseGroup["first-release-date"]);
-  appendTag(tags, "BARCODE", release.barcode);
-  appendTag(tags, "ASIN", release.asin);
-  appendTag(tags, "LABEL", labels);
-  appendTag(tags, "CATALOGNUMBER", catalogNumbers);
-  appendTag(tags, "MEDIA", medium.format);
-  appendTag(tags, "TOTALTRACKS", medium["track-count"]);
-  appendTag(tags, "TOTALDISCS", Array.isArray(release.media) ? release.media.length : "");
-  appendTag(tags, "TRACKTOTAL", medium["track-count"]);
-  appendTag(tags, "DISCTOTAL", Array.isArray(release.media) ? release.media.length : "");
-  appendTag(tags, "DISCNUMBER", discNumber);
-  appendTag(tags, "ISRC", recording.isrcs);
+  appendTags(tags, [
+    ["TITLE", recording.title || track.title],
+    ["ARTIST", artist],
+    ["ALBUM", release.title],
+    ["ALBUMARTIST", albumArtist],
+    ["DATE", release.date],
+    ["GENRE", genre],
+    ["TRACKNUMBER", track.number],
+    ["DISC", disc],
+    ["MUSICBRAINZ_ALBUMID", release.id],
+    ["MUSICBRAINZ_RELEASEGROUPID", releaseGroup.id],
+    ["MUSICBRAINZ_TRACKID", recording.id],
+    ["MUSICBRAINZ_RELEASETRACKID", track.id],
+    ["MUSICBRAINZ_ARTISTID", artistIds],
+    ["MUSICBRAINZ_ALBUMARTISTID", albumArtistIds],
+    ["MUSICBRAINZ_ALBUMSTATUS", release.status],
+    ["MUSICBRAINZ_ALBUMTYPE", releaseTypes],
+    ["RELEASETYPE", releaseTypes],
+    ["RELEASESTATUS", release.status],
+    ["RELEASECOUNTRY", release.country],
+    ["RELEASEDATE", release.date],
+    ["ORIGINALDATE", releaseGroup["first-release-date"]],
+    ["BARCODE", release.barcode],
+    ["ASIN", release.asin],
+    ["LABEL", labels],
+    ["CATALOGNUMBER", catalogNumbers],
+    ["MEDIA", medium.format],
+    ["TOTALTRACKS", medium["track-count"]],
+    ["TOTALDISCS", Array.isArray(release.media) ? release.media.length : ""],
+    ["TRACKTOTAL", medium["track-count"]],
+    ["DISCTOTAL", Array.isArray(release.media) ? release.media.length : ""],
+    ["DISCNUMBER", discNumber],
+    ["ISRC", recording.isrcs]
+  ]);
 
   return tags;
 }
@@ -242,9 +257,7 @@ function normalizeMusicBrainzTrack(track, release, medium, isMultiDisc) {
   const discNumber = isMultiDisc && Number.isFinite(medium.position)
     ? medium.position
     : null;
-  const artist = getArtistCreditName(recording["artist-credit"]) ||
-    getArtistCreditName(track["artist-credit"]) ||
-    getArtistCreditName(release["artist-credit"]);
+  const artist = getTrackArtist(track, release);
   const albumArtist = getArtistCreditName(release["artist-credit"]);
   const genre = getGenreNames(recording, release, release["release-group"]).join(", ");
 

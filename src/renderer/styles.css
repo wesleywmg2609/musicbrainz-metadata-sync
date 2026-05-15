@@ -3,8 +3,6 @@
   font-family: "Segoe UI", Inter, Arial, sans-serif;
   background: #eef1f4;
   color: #18201d;
-  --surface: #ffffff;
-  --surface-muted: #f7f8fa;
   --surface-strong: #edf2f4;
   --border: #d9dee4;
   --border-soft: #e7eaee;
@@ -14,8 +12,6 @@
   --green-dark: #106744;
   --blue: #2f63a3;
   --blue-dark: #254f82;
-  --red: #b21d2a;
-  --red-dark: #951521;
   --shadow: 0 18px 45px rgba(40, 50, 60, 0.1);
 }
 
@@ -31,10 +27,7 @@ body {
   min-width: 760px;
 }
 
-button,
-input,
-label,
-legend {
+button {
   font: inherit;
 }
 
@@ -56,49 +49,6 @@ h2 {
   font-size: 17px;
   font-weight: 750;
   line-height: 1.25;
-}
-
-fieldset {
-  border: 0;
-  margin: 0;
-  padding: 0;
-}
-
-legend {
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 650;
-  margin-bottom: 6px;
-}
-
-fieldset > span {
-  color: var(--text-muted);
-  display: block;
-  font-size: 13px;
-  font-weight: 750;
-  margin-bottom: 10px;
-}
-
-label {
-  color: var(--text-muted);
-  display: grid;
-  font-size: 13px;
-  font-weight: 650;
-  gap: 8px;
-}
-
-input {
-  background: #ffffff;
-  border: 1px solid #ccd4da;
-  border-radius: 7px;
-  color: #18201d;
-  padding: 10px 11px;
-  width: 100%;
-}
-
-input:focus {
-  border-color: var(--green);
-  outline: 3px solid rgba(22, 122, 84, 0.16);
 }
 
 .app-shell {

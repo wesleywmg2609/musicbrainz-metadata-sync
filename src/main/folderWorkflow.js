@@ -35,10 +35,6 @@ async function pathExists(filePath) {
   }
 }
 
-async function getAvailablePath(filePath) {
-  return filePath;
-}
-
 async function clearFlacMetadata(filePath) {
   if (path.extname(filePath).toLowerCase() !== ".flac") {
     return;
@@ -123,9 +119,7 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
       continue;
     }
 
-    const destinationPath = await getAvailablePath(
-      path.join(targetFolderPath, file.name)
-    );
+    const destinationPath = path.join(targetFolderPath, file.name);
 
     await renamePath(file.path, destinationPath, "file");
     movedCount += 1;
@@ -152,9 +146,7 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
       continue;
     }
 
-    const destinationPath = await getAvailablePath(
-      path.join(targetFolderPath, newFileName)
-    );
+    const destinationPath = path.join(targetFolderPath, newFileName);
 
     if (destinationPath.toLowerCase() !== currentPath.toLowerCase()) {
       await renamePath(currentPath, destinationPath, "file");
