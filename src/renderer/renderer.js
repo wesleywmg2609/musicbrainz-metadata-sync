@@ -1,30 +1,11 @@
 const chooseFolderButton = document.querySelector("#chooseFolderButton");
 const applyButton = document.querySelector("#applyButton");
 const folderLabel = document.querySelector("#folderLabel");
-const fetchSpotifyButton = document.querySelector("#fetchSpotifyButton");
-const fetchLastfmButton = document.querySelector("#fetchLastfmButton");
 const fetchMusicBrainzButton = document.querySelector("#fetchMusicBrainzButton");
-const spotifyStatus = document.querySelector("#spotifyStatus");
+const metadataStatus = document.querySelector("#metadataStatus");
 const folderPreviewName = document.querySelector("#folderPreviewName");
-const removeMetadataCount = document.querySelector("#removeMetadataCount");
-const removeMetadataOptions = document.querySelector("#removeMetadataOptions");
 const fileCount = document.querySelector("#fileCount");
 const fileTableBody = document.querySelector("#fileTableBody");
-
-const xiphDefaultMetadataFields = [
-  "VERSION",
-  "PERFORMER",
-  "COPYRIGHT",
-  "LICENSE",
-  "ORGANIZATION",
-  "DESCRIPTION",
-  "LOCATION",
-  "CONTACT",
-  "ISRC"
-].map((value) => ({
-  value,
-  label: value
-}));
 
 const metadataLabelOverrides = new Map(
   [
@@ -51,32 +32,9 @@ function formatMetadataLabel(key) {
 
 let selectedFiles = [];
 let selectedFolderPath = "";
-let spotifyAlbum = null;
-let selectedRemoveMetadataFields = new Set();
+let fetchedAlbum = null;
 let activeMetadataTooltip = null;
 let lastPointerPosition = null;
-
-const metadataProviders = {
-  musicbrainz: {
-    button: fetchMusicBrainzButton,
-    idleText: "MusicBrainz",
-    sourceName: "MusicBrainz",
-    fetchAlbum: (payload) => window.musicMetadataSync.fetchMusicBrainzAlbum(payload)
-  },
-  lastfm: {
-    button: fetchLastfmButton,
-    idleText: "Last.fm",
-    sourceName: "Last.fm",
-    includeFiles: true,
-    fetchAlbum: (payload) => window.musicMetadataSync.fetchLastfmAlbum(payload)
-  },
-  spotify: {
-    button: fetchSpotifyButton,
-    idleText: "Spotify",
-    sourceName: "Spotify",
-    fetchAlbum: (payload) => window.musicMetadataSync.fetchSpotifyAlbum(payload)
-  }
-};
 
 function hideActiveMetadataTooltip() {
   if (!activeMetadataTooltip) {
@@ -134,7 +92,7 @@ function getParentFolderPath(folderPath) {
 }
 
 function buildFolderName() {
-  const metadata = spotifyAlbum || selectedFiles.find(
+  const metadata = fetchedAlbum || selectedFiles.find(
     (file) =>
       file.metadata?.album &&
       (file.metadata?.albumArtist || file.metadata?.artist)
@@ -162,14 +120,14 @@ function buildTargetFolderPath() {
 }
 
 function buildPreviewName(file) {
-  const metadata = file.spotifyMetadata;
+  const metadata = file.fetchedMetadata;
 
   if (!metadata?.title) {
     return file.name;
   }
 
   const extension = file.extension || "";
-  const track = String(metadata.track || metadata.trackNumber || "").padStart(2, "0");
+  const track = String(metadata.track || "").padStart(2, "0");
   const title = cleanFileName(metadata.title);
 
   if (!track || !title) {
@@ -180,7 +138,7 @@ function buildPreviewName(file) {
 }
 
 function getPreviewMetadata(file) {
-  return file?.spotifyMetadata || file?.metadata || {};
+  return file?.fetchedMetadata || file?.metadata || {};
 }
 
 function formatMetadataValue(value, options = {}) {
@@ -191,6 +149,10 @@ function formatMetadataValue(value, options = {}) {
   return String(value);
 }
 
+function hasMetadataValue(value) {
+  return value !== null && value !== undefined && value !== "";
+}
+
 function createMetadataLine(label, currentValue, targetValue, options = {}) {
   const row = document.createElement("div");
   const labelElement = document.createElement("span");
@@ -198,6 +160,7 @@ function createMetadataLine(label, currentValue, targetValue, options = {}) {
   const currentText = formatMetadataValue(currentValue, options);
   const targetText = formatMetadataValue(targetValue, options);
   const hasTargetValue = targetValue !== undefined;
+  const hasCurrentValue = hasMetadataValue(currentValue);
   const isRemovingValue = hasTargetValue && (
     targetValue === null ||
     targetValue === ""
@@ -213,8 +176,6 @@ function createMetadataLine(label, currentValue, targetValue, options = {}) {
     valueElement.className = "metadata-change-values";
     oldValue.className = "metadata-old-value";
     oldValue.textContent = currentText;
-
-    const hasCurrentValue = currentText !== "";
 
     if (isRemovingValue) {
       row.classList.add("metadata-remove");
@@ -252,88 +213,28 @@ function createMetadataSection(title) {
   return section;
 }
 
-function renderRemoveMetadataOptions() {
-  const options = getAvailableRemoveMetadataFields();
-
-  selectedRemoveMetadataFields = new Set(
-    [...selectedRemoveMetadataFields].filter((field) =>
-      options.some((option) => normalizeMetadataKey(option.value) === normalizeMetadataKey(field))
-    )
-  );
-
-  options.forEach((field) => {
-    selectedRemoveMetadataFields.add(field.value);
-  });
-
-  removeMetadataOptions.replaceChildren();
-
-  options.forEach((field) => {
-    const label = document.createElement("label");
-    const checkbox = document.createElement("input");
-    const text = document.createElement("span");
-
-    label.className = "checkbox-option";
-    checkbox.type = "checkbox";
-    checkbox.value = field.value;
-    checkbox.checked = selectedRemoveMetadataFields.has(field.value);
-    text.textContent = field.label;
-
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) {
-        selectedRemoveMetadataFields.add(field.value);
-      } else {
-        selectedRemoveMetadataFields.delete(field.value);
-      }
-
-      renderFiles();
-    });
-
-    label.append(checkbox, text);
-    removeMetadataOptions.append(label);
-  });
-}
-
-function getAvailableRemoveMetadataFields() {
-  const fieldsByKey = new Map();
-
-  xiphDefaultMetadataFields.forEach((field) => {
-    fieldsByKey.set(normalizeMetadataKey(field.value), field);
-  });
-
-  selectedFiles.forEach((file) => {
-    Object.keys(file.metadata?.rawTags || {}).forEach((key) => {
-      const normalizedKey = normalizeMetadataKey(key);
-
-      if (isKeyMetadataTag(key)) {
-        return;
-      }
-
-      if (!fieldsByKey.has(normalizedKey)) {
-        fieldsByKey.set(normalizedKey, {
-          label: formatMetadataLabel(key),
-          value: key
-        });
-      }
-    });
-  });
-
-  return [...fieldsByKey.values()].sort((a, b) => a.label.localeCompare(b.label));
-}
-
 function getSortedRawTags(rawTags = {}) {
   return Object.entries(rawTags)
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
     .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
 }
 
-function normalizeMetadataKey(key) {
-  return String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function getSortedFlacTags(flacTags = {}) {
+  return Object.entries(flacTags)
+    .filter(([, value]) => {
+      const values = Array.isArray(value) ? value : [value];
+
+      return values.some((item) => item !== null && item !== undefined && item !== "");
+    })
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
 }
 
-function shouldRemoveMetadataField(key) {
-  const normalizedKey = normalizeMetadataKey(key);
+function formatFlacTagValue(value) {
+  return Array.isArray(value) ? value.join(", ") : value;
+}
 
-  return [...selectedRemoveMetadataFields].some((field) => normalizeMetadataKey(field) === normalizedKey);
+function normalizeMetadataKey(key) {
+  return String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function isKeyMetadataTag(key) {
@@ -352,7 +253,7 @@ function isKeyMetadataTag(key) {
 
 function renderMetadataTooltipContent(tooltip, file) {
   const currentMetadata = file.metadata || {};
-  const targetMetadata = file.spotifyMetadata || {};
+  const targetMetadata = file.fetchedMetadata || {};
   const keySection = createMetadataSection("PRIMARY METADATA");
   const otherSection = createMetadataSection("ADDITIONAL METADATA");
   const keyRows = [
@@ -365,28 +266,45 @@ function renderMetadataTooltipContent(tooltip, file) {
     ["TRACK", currentMetadata.track, targetMetadata.track]
   ];
   const rawTags = getSortedRawTags(currentMetadata.rawTags).filter(([key]) => !isKeyMetadataTag(key));
+  const rawTagsByKey = new Map(rawTags.map(([key, value]) => [normalizeMetadataKey(key), value]));
+  const flacTags = getSortedFlacTags(targetMetadata.flacTags).filter(([key]) => !isKeyMetadataTag(key));
 
   tooltip.replaceChildren();
 
   keyRows.forEach(([label, currentValue, targetValue]) => {
-    keySection.append(createMetadataLine(label, currentValue, file.spotifyMetadata ? targetValue : undefined, {
+    keySection.append(createMetadataLine(label, currentValue, file.fetchedMetadata ? targetValue : undefined, {
       blankEmpty: true
     }));
   });
 
   tooltip.append(keySection);
 
-  if (rawTags.length > 0) {
+  if (rawTags.length > 0 || flacTags.length > 0) {
     rawTags.forEach(([key, value]) => {
-      const targetValue = shouldRemoveMetadataField(key)
-        ? ""
-        : undefined;
+      const flacTag = flacTags.find(([tagKey]) => normalizeMetadataKey(tagKey) === normalizeMetadataKey(key));
+      const targetValue = flacTag
+        ? formatFlacTagValue(flacTag[1])
+        : (file.fetchedMetadata ? "" : undefined);
 
       otherSection.append(
         createMetadataLine(
           formatMetadataLabel(key),
           value,
           targetValue
+        )
+      );
+    });
+
+    flacTags.forEach(([key, value]) => {
+      if (rawTagsByKey.has(normalizeMetadataKey(key))) {
+        return;
+      }
+
+      otherSection.append(
+        createMetadataLine(
+          formatMetadataLabel(key),
+          "",
+          formatFlacTagValue(value)
         )
       );
     });
@@ -462,9 +380,8 @@ function renderFiles(options = {}) {
   }
 
   fileCount.textContent = `${selectedFiles.length} ${selectedFiles.length === 1 ? "file" : "files"}`;
-  removeMetadataCount.textContent = `${selectedRemoveMetadataFields.size} ${selectedRemoveMetadataFields.size === 1 ? "field" : "fields"} selected`;
   folderPreviewName.textContent = buildFolderName() || "Selected folder name stays unchanged until artist and album are set.";
-  applyButton.disabled = !selectedFolderPath || selectedFiles.length === 0;
+  applyButton.disabled = !selectedFolderPath || !selectedFiles.some((file) => file.fetchedMetadata);
   fileTableBody.replaceChildren();
 
   if (selectedFiles.length === 0) {
@@ -525,9 +442,8 @@ chooseFolderButton.addEventListener("click", async () => {
       folderLabel.textContent = result.folderPath;
       selectedFolderPath = result.folderPath;
       selectedFiles = result.files;
-      spotifyAlbum = null;
-      spotifyStatus.textContent = "Metadata not loaded.";
-      renderRemoveMetadataOptions();
+      fetchedAlbum = null;
+      metadataStatus.textContent = "Metadata not loaded.";
       renderFiles();
     }
   } finally {
@@ -546,7 +462,7 @@ function getLocalMetadataKey(file) {
   return `${metadata.discNumber}:${metadata.trackNumber}`;
 }
 
-function getSpotifyMetadataKey(track) {
+function getFetchedMetadataKey(track) {
   if (!Number.isFinite(track.discNumber) || !Number.isFinite(track.trackNumber)) {
     return "";
   }
@@ -554,11 +470,11 @@ function getSpotifyMetadataKey(track) {
   return `${track.discNumber}:${track.trackNumber}`;
 }
 
-function applySpotifyMetadata(albumData) {
+function applyFetchedMetadata(albumData) {
   const tracksByKey = new Map();
 
   albumData.tracks.forEach((track) => {
-    const key = getSpotifyMetadataKey(track);
+    const key = getFetchedMetadataKey(track);
 
     if (key) {
       tracksByKey.set(key, track);
@@ -570,20 +486,15 @@ function applySpotifyMetadata(albumData) {
 
     return {
       ...file,
-      spotifyMetadata: matchingTrack
+      fetchedMetadata: matchingTrack
     };
   });
 }
 
-async function fetchExternalAlbumMetadata(source) {
-  const provider = metadataProviders[source];
-  const button = provider.button;
-
-  Object.values(metadataProviders).forEach((item) => {
-    item.button.disabled = true;
-  });
-  button.textContent = "Fetching...";
-  spotifyStatus.textContent = `Searching ${provider.sourceName}...`;
+async function fetchMusicBrainzMetadata() {
+  fetchMusicBrainzButton.disabled = true;
+  fetchMusicBrainzButton.textContent = "Fetching...";
+  metadataStatus.textContent = "Searching MusicBrainz...";
 
   try {
     const metadata = selectedFiles.find(
@@ -594,35 +505,24 @@ async function fetchExternalAlbumMetadata(source) {
 
     const payload = {
       artist: metadata?.albumArtist || metadata?.artist,
-      album: metadata?.album,
-      files: provider.includeFiles ? selectedFiles : undefined
+      album: metadata?.album
     };
 
-    spotifyAlbum = await provider.fetchAlbum(payload);
-    applySpotifyMetadata(spotifyAlbum);
-    spotifyStatus.textContent = `Loaded ${provider.sourceName} metadata from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
+    fetchedAlbum = await window.musicMetadataSync.fetchMusicBrainzAlbum(payload);
+    applyFetchedMetadata(fetchedAlbum);
+    metadataStatus.textContent = `Loaded MusicBrainz metadata from ${fetchedAlbum.albumArtist} - ${fetchedAlbum.album}.`;
     renderFiles({ restoreActiveTooltip: true });
   } catch (error) {
-    spotifyStatus.textContent = error.message;
+    metadataStatus.textContent = error.message;
     window.alert(error.message);
   } finally {
-    Object.values(metadataProviders).forEach((item) => {
-      item.button.disabled = false;
-      item.button.textContent = item.idleText;
-    });
+    fetchMusicBrainzButton.disabled = false;
+    fetchMusicBrainzButton.textContent = "MusicBrainz";
   }
 }
 
-fetchSpotifyButton.addEventListener("click", async () => {
-  await fetchExternalAlbumMetadata("spotify");
-});
-
-fetchLastfmButton.addEventListener("click", async () => {
-  await fetchExternalAlbumMetadata("lastfm");
-});
-
 fetchMusicBrainzButton.addEventListener("click", async () => {
-  await fetchExternalAlbumMetadata("musicbrainz");
+  await fetchMusicBrainzMetadata();
 });
 
 window.addEventListener("pointermove", (event) => {
@@ -640,14 +540,14 @@ applyButton.addEventListener("click", async () => {
     const result = await window.musicMetadataSync.applyFolderWorkflow({
       folderPath: selectedFolderPath,
       folderName: buildFolderName(),
-      metadataFieldsToRemove: [...selectedRemoveMetadataFields],
       files: selectedFiles
     });
 
     selectedFolderPath = result.folderPath;
     folderLabel.textContent = result.folderPath;
     selectedFiles = result.files;
-    renderRemoveMetadataOptions();
+    fetchedAlbum = null;
+    metadataStatus.textContent = "Metadata applied.";
     renderFiles();
   } catch (error) {
     window.alert(error.message);
@@ -671,4 +571,4 @@ document.addEventListener("click", (event) => {
   hideActiveMetadataTooltip();
 });
 
-renderRemoveMetadataOptions();
+renderFiles();

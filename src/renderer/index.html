@@ -27,27 +27,12 @@
       </div>
       <div class="metadata-actions">
         <button id="fetchMusicBrainzButton" type="button">MusicBrainz</button>
-        <button id="fetchLastfmButton" type="button">Last.fm</button>
-        <button id="fetchSpotifyButton" type="button">Spotify</button>
-        <span id="spotifyStatus">Metadata not loaded.</span>
+        <span id="metadataStatus">Metadata not loaded.</span>
       </div>
       <div class="folder-preview">
         <span>Folder Preview</span>
         <strong id="folderPreviewName">Selected folder name stays unchanged until artist and album are set.</strong>
       </div>
-    </section>
-
-    <section class="settings-panel" aria-label="Metadata removal fields">
-      <div class="settings-header">
-        <div>
-          <h2>Remove Metadata Fields</h2>
-          <p>Defaults use Xiph field names and expand with fields found in selected files.</p>
-        </div>
-        <span id="removeMetadataCount">0 fields selected</span>
-      </div>
-      <fieldset>
-        <div id="removeMetadataOptions" class="checkbox-grid"></div>
-      </fieldset>
     </section>
 
     <section class="file-panel" aria-label="Audio file preview">

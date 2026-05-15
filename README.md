@@ -1,14 +1,13 @@
 # Music Metadata Sync
 
-Electron app for matching local music files with Spotify or Last.fm metadata.
+Electron app for matching local music files with MusicBrainz metadata.
 
 ## Features
 
 - Choose a local music folder.
 - Read existing audio metadata with `ffprobe`.
 - Sort files by disc and track number.
-- Fetch Spotify album metadata from artist and album search.
-- Fetch Last.fm album metadata from artist and album lookup.
+- Fetch MusicBrainz release metadata from artist and album search.
 - Preview fetched title, album, artist, album artist, disc, and track data.
 - Preview the target folder name from fetched metadata.
 - Apply folder cleanup by renaming the album folder and moving nested audio files into the folder root.
@@ -20,9 +19,7 @@ The app previews fetched metadata before applying folder and FLAC tag changes.
 - Node.js
 - npm
 - FFmpeg / `ffprobe`
-- FLAC tools / `metaflac` for removing FLAC metadata fields
-- Spotify Developer app credentials
-- Last.fm API key for Last.fm metadata lookup
+- FLAC tools / `metaflac` for replacing FLAC metadata fields
 
 ## Setup
 
@@ -32,15 +29,7 @@ Install dependencies:
 npm.cmd install
 ```
 
-Create a local `.env` file:
-
-```env
-SPOTIFY_CLIENT_ID=your_client_id
-SPOTIFY_CLIENT_SECRET=your_client_secret
-LASTFM_API_KEY=your_lastfm_api_key
-```
-
-You can use `.env.example` as the template. The real `.env` file is ignored by git.
+No API key is required for MusicBrainz.
 
 ## Run
 
@@ -59,7 +48,7 @@ npm.cmd run dev
 1. Start the app.
 2. Choose a music folder.
 3. Confirm or edit the Artist and Album fields.
-4. Click **Fetch Spotify**, **Fetch Last.fm**, or **Fetch MusicBrainz**.
+4. Click **MusicBrainz**.
 5. Review the preview table.
 6. Click **Apply Changes** only when the preview looks correct.
 
@@ -71,11 +60,8 @@ src/
   preload.js              Safe bridge between renderer and main process
   main/
     audio.js              ffprobe metadata reading and file sorting
-    env.js                .env loading
     folderWorkflow.js     folder rename and audio flatten workflow
-    lastfm.js             Last.fm album lookup and metadata fetch
     musicbrainz.js        MusicBrainz release lookup and metadata fetch
-    spotify.js            Spotify auth, album search, and metadata fetch
   renderer/
     index.html            UI markup
     renderer.js           UI behavior and preview rendering

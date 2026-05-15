@@ -1,12 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
 const path = require("node:path");
-const { loadDotEnv } = require("./main/env");
 const { applyFolderWorkflow, getFolderAudioFiles } = require("./main/folderWorkflow");
-const { fetchLastfmAlbumMetadata } = require("./main/lastfm");
 const { fetchMusicBrainzAlbumMetadata } = require("./main/musicbrainz");
-const { fetchSpotifyAlbumMetadata } = require("./main/spotify");
-
-loadDotEnv();
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -68,14 +63,6 @@ ipcMain.handle("folder:choose", async () => {
 
 ipcMain.handle("folder:apply", async (_event, payload) => {
   return applyFolderWorkflow(payload);
-});
-
-ipcMain.handle("spotify:album", async (_event, payload) => {
-  return fetchSpotifyAlbumMetadata(payload);
-});
-
-ipcMain.handle("lastfm:album", async (_event, payload) => {
-  return fetchLastfmAlbumMetadata(payload);
 });
 
 ipcMain.handle("musicbrainz:album", async (_event, payload) => {

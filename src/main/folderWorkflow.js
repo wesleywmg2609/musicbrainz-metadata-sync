@@ -15,8 +15,8 @@ function cleanFileName(name) {
     .trim();
 }
 
-function buildSpotifyFileName(metadata, extension) {
-  const track = String(metadata.track || metadata.trackNumber || "").padStart(2, "0");
+function buildFetchedFileName(metadata, extension) {
+  const track = String(metadata.track || "").padStart(2, "0");
   const title = cleanFileName(metadata.title || "");
 
   if (!track || !title) {
@@ -39,28 +39,19 @@ async function getAvailablePath(filePath) {
   return filePath;
 }
 
-async function removeMetadataFields(filePath, fields) {
-  if (path.extname(filePath).toLowerCase() !== ".flac" || fields.length === 0) {
+async function clearFlacMetadata(filePath) {
+  if (path.extname(filePath).toLowerCase() !== ".flac") {
     return;
   }
 
-  const fieldsToRemove = [...new Set(
-    fields
-      .map((field) => String(field || "").trim())
-      .filter(Boolean)
-      .flatMap((field) => [field, field.toUpperCase()])
-  )];
-
-  for (const field of fieldsToRemove) {
-    try {
-      await execFileAsync("metaflac", [`--remove-tag=${field}`, filePath]);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        throw new Error("metaflac is required to remove FLAC metadata fields. Install FLAC tools and try again.");
-      }
-
-      throw error;
+  try {
+    await execFileAsync("metaflac", ["--remove-all-tags", filePath]);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      throw new Error("metaflac is required to write FLAC metadata.");
     }
+
+    throw error;
   }
 }
 
@@ -69,30 +60,34 @@ async function writeFlacMetadata(filePath, metadata) {
     return;
   }
 
-  await removeMetadataFields(filePath, ["TRACK", "DISCNUMBER"]);
+  await clearFlacMetadata(filePath);
 
-  const tags = [
-    ["TITLE", metadata.title],
-    ["ARTIST", metadata.artist],
-    ["ALBUM", metadata.album],
-    ["ALBUMARTIST", metadata.albumArtist],
-    ["DATE", metadata.date],
-    ["GENRE", metadata.genre],
-    ["TRACKNUMBER", metadata.track],
-    ["DISC", metadata.disc]
-  ];
+  const tags = Object.entries(metadata.flacTags || {})
+    .map(([field, value]) => [
+      String(field || "")
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, "_"),
+      value
+    ])
+    .filter(([field]) => field && !field.includes("="));
 
   for (const [field, value] of tags) {
-    if (!value) {
+    const values = (Array.isArray(value) ? value : [value])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+
+    if (values.length === 0) {
       continue;
     }
 
     try {
-      await execFileAsync("metaflac", [
-        `--remove-tag=${field}`,
-        `--set-tag=${field}=${value}`,
-        filePath
-      ]);
+      for (const item of values) {
+        await execFileAsync("metaflac", [
+          `--set-tag=${field}=${item}`,
+          filePath
+        ]);
+      }
     } catch (error) {
       if (error.code === "ENOENT") {
         throw new Error("metaflac is required to write FLAC metadata.");
@@ -103,7 +98,7 @@ async function writeFlacMetadata(filePath, metadata) {
   }
 }
 
-async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRemove = [], files = [] }) {
+async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
   let targetFolderPath = folderPath;
   const safeFolderName = cleanFileName(folderName || "");
 
@@ -118,10 +113,6 @@ async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRem
       await renamePath(folderPath, targetFolderPath, "folder");
     }
   }
-
-  const fieldsToRemove = Array.isArray(metadataFieldsToRemove)
-    ? metadataFieldsToRemove
-    : [];
 
   const audioFiles = await walkAudioFiles(targetFolderPath);
 
@@ -140,16 +131,8 @@ async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRem
     movedCount += 1;
   }
 
-  if (fieldsToRemove.length > 0) {
-    const currentFiles = await walkAudioFiles(targetFolderPath);
-
-    for (const file of currentFiles) {
-      await removeMetadataFields(file.path, fieldsToRemove);
-    }
-  }
-
   for (const file of files) {
-    if (!file.spotifyMetadata) {
+    if (!file.fetchedMetadata) {
       continue;
     }
 
@@ -158,10 +141,10 @@ async function applyFolderWorkflow({ folderPath, folderName, metadataFieldsToRem
       path.basename(file.path)
     );
 
-    await writeFlacMetadata(currentPath, file.spotifyMetadata);
+    await writeFlacMetadata(currentPath, file.fetchedMetadata);
 
-    const newFileName = buildSpotifyFileName(
-      file.spotifyMetadata,
+    const newFileName = buildFetchedFileName(
+      file.fetchedMetadata,
       path.extname(currentPath)
     );
 
