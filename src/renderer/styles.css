@@ -1,8 +1,22 @@
 :root {
   color-scheme: light;
-  font-family: "Segoe UI", Arial, sans-serif;
-  background: #f6f4ef;
-  color: #1f2523;
+  font-family: "Segoe UI", Inter, Arial, sans-serif;
+  background: #eef1f4;
+  color: #18201d;
+  --surface: #ffffff;
+  --surface-muted: #f7f8fa;
+  --surface-strong: #edf2f4;
+  --border: #d9dee4;
+  --border-soft: #e7eaee;
+  --text-muted: #64706d;
+  --text-soft: #7d8784;
+  --green: #167a54;
+  --green-dark: #106744;
+  --blue: #2f63a3;
+  --blue-dark: #254f82;
+  --red: #b21d2a;
+  --red-dark: #951521;
+  --shadow: 0 18px 45px rgba(40, 50, 60, 0.1);
 }
 
 * {
@@ -10,6 +24,9 @@
 }
 
 body {
+  background:
+    linear-gradient(180deg, #f6f8fa 0, #eef1f4 320px),
+    #eef1f4;
   margin: 0;
   min-width: 760px;
 }
@@ -28,13 +45,17 @@ p {
 }
 
 h1 {
-  font-size: 28px;
-  font-weight: 700;
+  color: #111817;
+  font-size: 29px;
+  font-weight: 750;
+  line-height: 1.1;
 }
 
 h2 {
-  font-size: 18px;
-  font-weight: 700;
+  color: #18201d;
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.25;
 }
 
 fieldset {
@@ -44,104 +65,148 @@ fieldset {
 }
 
 legend {
-  color: #58615d;
+  color: var(--text-muted);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   margin-bottom: 6px;
 }
 
 fieldset > span {
-  color: #68716d;
+  color: var(--text-muted);
   display: block;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 750;
   margin-bottom: 10px;
 }
 
 label {
-  color: #58615d;
+  color: var(--text-muted);
   display: grid;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   gap: 8px;
 }
 
 input {
-  border: 1px solid #cfc8bb;
-  border-radius: 6px;
-  color: #202624;
+  background: #ffffff;
+  border: 1px solid #ccd4da;
+  border-radius: 7px;
+  color: #18201d;
   padding: 10px 11px;
   width: 100%;
 }
 
 input:focus {
-  border-color: #1f7a5b;
-  outline: 3px solid rgba(31, 122, 91, 0.16);
+  border-color: var(--green);
+  outline: 3px solid rgba(22, 122, 84, 0.16);
 }
 
 .app-shell {
   display: grid;
-  gap: 20px;
+  gap: 18px;
   margin: 0 auto;
-  max-width: 1180px;
-  padding: 28px;
+  max-width: 1220px;
+  padding: 26px;
 }
 
 .toolbar,
 .metadata-panel,
 .settings-panel,
 .file-panel {
-  background: #ffffff;
-  border: 1px solid #ddd8cd;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(47, 43, 35, 0.08);
+  box-shadow: var(--shadow);
 }
 
-/* Buttons */
+button {
+  align-items: center;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 750;
+  justify-content: center;
+  line-height: 1;
+  min-height: 42px;
+  padding: 0 16px;
+  transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+button:hover:not(:disabled) {
+  box-shadow: 0 10px 20px rgba(24, 32, 29, 0.13);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(0);
+}
+
 #chooseFolderButton,
 #applyButton,
 #fetchSpotifyButton,
-#fetchLastfmButton {
-  border: 0;
-  border-radius: 6px;
+#fetchLastfmButton,
+#fetchMusicBrainzButton {
   color: #ffffff;
-  cursor: pointer;
-  font-weight: 700;
   min-width: 140px;
-  padding: 11px 16px;
 }
 
 #chooseFolderButton {
-  background: #1f7a5b;
+  background: var(--green);
+}
+
+#chooseFolderButton:hover:not(:disabled) {
+  background: var(--green-dark);
 }
 
 #applyButton {
-  background: #2f4f67;
+  background: #31465a;
+}
+
+#applyButton:hover:not(:disabled) {
+  background: #243648;
 }
 
 #fetchSpotifyButton {
   background: #1db954;
 }
 
+#fetchSpotifyButton:hover:not(:disabled) {
+  background: #169b45;
+}
+
 #fetchLastfmButton {
-  background: #b90000;
+  background: var(--red);
+}
+
+#fetchLastfmButton:hover:not(:disabled) {
+  background: var(--red-dark);
+}
+
+#fetchMusicBrainzButton {
+  background: var(--blue);
+}
+
+#fetchMusicBrainzButton:hover:not(:disabled) {
+  background: var(--blue-dark);
 }
 
 #chooseFolderButton:disabled,
 #applyButton:disabled,
 #fetchSpotifyButton:disabled,
-#fetchLastfmButton:disabled {
+#fetchLastfmButton:disabled,
+#fetchMusicBrainzButton:disabled {
   cursor: wait;
-  opacity: 0.7;
+  opacity: 0.62;
 }
 
-/* Toolbar */
 .toolbar {
   align-items: center;
   display: flex;
-  gap: 20px;
+  gap: 22px;
   justify-content: space-between;
-  padding: 22px 24px;
+  padding: 24px;
 }
 
 .toolbar-actions {
@@ -152,61 +217,83 @@ input:focus {
 }
 
 #folderLabel {
-  color: #68716d;
-  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 7px;
   max-width: 720px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Metadata summary */
 .metadata-panel {
   display: grid;
-  gap: 16px;
-  padding: 18px 20px;
+  gap: 15px;
+  padding: 20px;
+}
+
+.metadata-panel-header {
+  align-items: center;
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: space-between;
 }
 
 .metadata-actions,
 .spotify-actions {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: start;
+  display: grid;
+  gap: 10px;
   grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(150px, max-content));
 }
 
-.metadata-actions span,
-.spotify-actions span {
-  color: #68716d;
+#spotifyStatus {
+  align-content: center;
+  background: #f7f9fb;
+  border: 1px solid var(--border-soft);
+  border-left: 4px solid #89a8c7;
+  border-radius: 7px;
+  color: #51605c;
+  display: grid;
+  grid-column: 1 / -1;
   font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  min-height: 42px;
   overflow-wrap: anywhere;
+  padding: 9px 12px;
 }
 
 .folder-preview {
+  background: linear-gradient(180deg, #fbfcfd 0, #f5f7f8 100%);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
   display: grid;
-  gap: 6px;
+  gap: 8px;
   grid-column: 1 / -1;
-  padding-top: 2px;
+  padding: 14px;
 }
 
 .folder-preview span {
-  color: #58615d;
-  font-size: 13px;
-  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .folder-preview strong {
-  color: #202624;
+  color: #16211e;
   font-size: 15px;
+  font-weight: 750;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-/* Settings */
 .settings-panel {
   display: grid;
-  gap: 14px;
-  padding: 18px 20px;
+  gap: 15px;
+  padding: 20px;
 }
 
 .settings-header {
@@ -217,63 +304,78 @@ input:focus {
 }
 
 .settings-header span {
-  color: #68716d;
-  font-size: 13px;
-  font-weight: 700;
+  background: var(--surface-strong);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: #51605c;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 10px;
   white-space: nowrap;
 }
 
 .settings-header p {
-  color: #68716d;
+  color: var(--text-muted);
   font-size: 13px;
   margin-top: 4px;
 }
 
 .checkbox-grid {
   display: grid;
-  gap: 10px 14px;
+  gap: 9px 10px;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .checkbox-option {
   align-items: center;
-  border: 1px solid #e5e0d6;
-  border-radius: 6px;
-  color: #202624;
+  background: #fbfcfd;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  color: #202927;
   display: flex;
   gap: 9px;
-  min-height: 38px;
+  min-height: 40px;
   padding: 8px 10px;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.checkbox-option:hover {
+  background: #f4f7f8;
+  border-color: #cbd5dc;
 }
 
 .checkbox-option input {
-  accent-color: #1f7a5b;
+  accent-color: var(--green);
   height: 16px;
   width: 16px;
 }
 
 .checkbox-option span {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
 }
 
-/* File preview */
 .file-panel {
   overflow: hidden;
 }
 
 .file-panel-header {
   align-items: center;
-  border-bottom: 1px solid #e5e0d6;
+  background: #fbfcfd;
+  border-bottom: 1px solid var(--border-soft);
   display: flex;
   justify-content: space-between;
   padding: 16px 20px;
 }
 
 #fileCount {
-  color: #68716d;
-  font-size: 13px;
-  font-weight: 700;
+  background: var(--surface-strong);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: #51605c;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 10px;
 }
 
 .table-wrap {
@@ -291,21 +393,22 @@ input:focus {
 
 .preview-table tr {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 110px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 108px;
 }
 
 th,
 td {
-  border-bottom: 1px solid #ece7dd;
+  border-bottom: 1px solid var(--border-soft);
   padding: 13px 16px;
   text-align: left;
   vertical-align: top;
 }
 
 th {
-  background: #fbfaf7;
-  color: #58615d;
+  background: #f2f5f7;
+  color: #54615e;
   font-size: 12px;
+  font-weight: 800;
   letter-spacing: 0;
   position: sticky;
   text-transform: uppercase;
@@ -314,15 +417,28 @@ th {
 }
 
 td {
+  color: #1c2522;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.42;
   overflow-wrap: anywhere;
   position: relative;
   z-index: 1;
 }
 
+tbody tr {
+  background: #ffffff;
+}
+
+tbody tr:nth-child(even) {
+  background: #fbfcfd;
+}
+
+tbody tr:hover {
+  background: #f3f8f6;
+}
+
 td span {
-  color: #7b837f;
+  color: var(--text-soft);
   display: block;
   font-size: 12px;
   margin-top: 3px;
@@ -340,13 +456,12 @@ td span {
 }
 
 .empty-state {
-  color: #68716d;
+  color: var(--text-muted);
   grid-column: 1 / -1;
-  padding: 34px 20px;
+  padding: 38px 20px;
   text-align: center;
 }
 
-/* Metadata tooltip */
 .metadata-popover {
   display: inline-flex;
   position: relative;
@@ -354,30 +469,38 @@ td span {
 
 .metadata-button {
   align-items: center;
-  background: #f1f6f3;
-  border: 1px solid #b8d8c9;
+  background: #eaf5f0;
+  border: 1px solid #b8d9ca;
   border-radius: 50%;
-  color: #1f7a5b;
+  color: var(--green);
   cursor: help;
   display: inline-flex;
   font-size: 13px;
-  font-weight: 800;
-  height: 28px;
+  font-weight: 900;
+  height: 30px;
   justify-content: center;
   line-height: 1;
+  min-height: 30px;
+  min-width: 30px;
   padding: 0;
-  width: 28px;
+  width: 30px;
+}
+
+.metadata-button:hover:not(:disabled) {
+  background: #dff0e8;
+  box-shadow: 0 8px 16px rgba(22, 122, 84, 0.16);
 }
 
 .metadata-tooltip {
-  background: #202624;
+  background: #16201d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  box-shadow: 0 14px 35px rgba(31, 37, 35, 0.24);
+  box-shadow: 0 18px 45px rgba(15, 20, 18, 0.28);
   color: #ffffff;
   display: none;
   gap: 8px;
   max-height: min(520px, calc(100vh - 24px));
-  max-width: 520px;
+  max-width: 540px;
   min-width: 340px;
   overflow-y: auto;
   padding: 12px;
@@ -407,7 +530,7 @@ td span {
 .metadata-tooltip-section h3 {
   color: #dce7e1;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 850;
   letter-spacing: 0;
   margin: 0;
 }
@@ -419,9 +542,9 @@ td span {
 }
 
 .metadata-tooltip-row span {
-  color: #aab4af;
+  color: #aeb9b5;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 750;
   margin: 0;
   white-space: nowrap;
 }
@@ -429,7 +552,7 @@ td span {
 .metadata-tooltip-row strong {
   color: #ffffff;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
   min-width: 0;
   overflow: hidden;
   overflow-wrap: anywhere;
@@ -453,7 +576,7 @@ td span {
 .metadata-tooltip-row .metadata-new-value {
   display: block;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 750;
   margin: 0;
   overflow-wrap: anywhere;
   text-overflow: ellipsis;
@@ -461,13 +584,13 @@ td span {
 }
 
 .metadata-tooltip-row .metadata-old-value {
-  color: #ff9b9b;
+  color: #ff9a9a;
   text-decoration: line-through;
   text-decoration-thickness: 2px;
 }
 
 .metadata-tooltip-row .metadata-new-value {
-  color: #9ee6bd;
+  color: #99e7bd;
 }
 
 @media (max-width: 820px) {
@@ -476,19 +599,45 @@ td span {
   }
 
   .app-shell {
-    padding: 16px;
+    gap: 14px;
+    padding: 14px;
   }
 
-  .toolbar {
+  .toolbar,
+  .settings-header,
+  .file-panel-header {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .metadata-panel {
+  .toolbar-actions,
+  .metadata-actions {
     grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .toolbar-actions {
+    display: grid;
+  }
+
+  #chooseFolderButton,
+  #applyButton,
+  #fetchSpotifyButton,
+  #fetchLastfmButton,
+  #fetchMusicBrainzButton {
+    width: 100%;
   }
 
   #folderLabel {
     max-width: 100%;
+  }
+
+  .preview-table tr {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 78px;
+  }
+
+  th,
+  td {
+    padding: 11px 10px;
   }
 }

@@ -59,7 +59,7 @@ npm.cmd run dev
 1. Start the app.
 2. Choose a music folder.
 3. Confirm or edit the Artist and Album fields.
-4. Click **Fetch Spotify** or **Fetch Last.fm**.
+4. Click **Fetch Spotify**, **Fetch Last.fm**, or **Fetch MusicBrainz**.
 5. Review the preview table.
 6. Click **Apply Changes** only when the preview looks correct.
 
@@ -74,6 +74,7 @@ src/
     env.js                .env loading
     folderWorkflow.js     folder rename and audio flatten workflow
     lastfm.js             Last.fm album lookup and metadata fetch
+    musicbrainz.js        MusicBrainz release lookup and metadata fetch
     spotify.js            Spotify auth, album search, and metadata fetch
   renderer/
     index.html            UI markup

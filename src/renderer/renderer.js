@@ -3,6 +3,7 @@ const applyButton = document.querySelector("#applyButton");
 const folderLabel = document.querySelector("#folderLabel");
 const fetchSpotifyButton = document.querySelector("#fetchSpotifyButton");
 const fetchLastfmButton = document.querySelector("#fetchLastfmButton");
+const fetchMusicBrainzButton = document.querySelector("#fetchMusicBrainzButton");
 const spotifyStatus = document.querySelector("#spotifyStatus");
 const folderPreviewName = document.querySelector("#folderPreviewName");
 const removeMetadataCount = document.querySelector("#removeMetadataCount");
@@ -54,6 +55,28 @@ let spotifyAlbum = null;
 let selectedRemoveMetadataFields = new Set();
 let activeMetadataTooltip = null;
 let lastPointerPosition = null;
+
+const metadataProviders = {
+  musicbrainz: {
+    button: fetchMusicBrainzButton,
+    idleText: "MusicBrainz",
+    sourceName: "MusicBrainz",
+    fetchAlbum: (payload) => window.musicMetadataSync.fetchMusicBrainzAlbum(payload)
+  },
+  lastfm: {
+    button: fetchLastfmButton,
+    idleText: "Last.fm",
+    sourceName: "Last.fm",
+    includeFiles: true,
+    fetchAlbum: (payload) => window.musicMetadataSync.fetchLastfmAlbum(payload)
+  },
+  spotify: {
+    button: fetchSpotifyButton,
+    idleText: "Spotify",
+    sourceName: "Spotify",
+    fetchAlbum: (payload) => window.musicMetadataSync.fetchSpotifyAlbum(payload)
+  }
+};
 
 function hideActiveMetadataTooltip() {
   if (!activeMetadataTooltip) {
@@ -553,16 +576,14 @@ function applySpotifyMetadata(albumData) {
 }
 
 async function fetchExternalAlbumMetadata(source) {
-  const isSpotify = source === "spotify";
-  const button = isSpotify ? fetchSpotifyButton : fetchLastfmButton;
-  const idleText = isSpotify ? "Fetch Spotify" : "Fetch Last.fm";
-  const sourceName = isSpotify ? "Spotify" : "Last.fm";
+  const provider = metadataProviders[source];
+  const button = provider.button;
 
-  button.disabled = true;
-  fetchSpotifyButton.disabled = true;
-  fetchLastfmButton.disabled = true;
+  Object.values(metadataProviders).forEach((item) => {
+    item.button.disabled = true;
+  });
   button.textContent = "Fetching...";
-  spotifyStatus.textContent = `Searching ${sourceName}...`;
+  spotifyStatus.textContent = `Searching ${provider.sourceName}...`;
 
   try {
     const metadata = selectedFiles.find(
@@ -574,24 +595,21 @@ async function fetchExternalAlbumMetadata(source) {
     const payload = {
       artist: metadata?.albumArtist || metadata?.artist,
       album: metadata?.album,
-      files: isSpotify ? undefined : selectedFiles
+      files: provider.includeFiles ? selectedFiles : undefined
     };
 
-    spotifyAlbum = isSpotify
-      ? await window.musicMetadataSync.fetchSpotifyAlbum(payload)
-      : await window.musicMetadataSync.fetchLastfmAlbum(payload);
+    spotifyAlbum = await provider.fetchAlbum(payload);
     applySpotifyMetadata(spotifyAlbum);
-    spotifyStatus.textContent = spotifyAlbum.trackSource === "local"
-      ? `Loaded ${sourceName} album metadata from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}; using ${spotifyAlbum.tracks.length} local track rows.`
-      : `Loaded ${spotifyAlbum.tracks.length} ${sourceName} tracks from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
+    spotifyStatus.textContent = `Loaded ${provider.sourceName} metadata from ${spotifyAlbum.albumArtist} - ${spotifyAlbum.album}.`;
     renderFiles({ restoreActiveTooltip: true });
   } catch (error) {
     spotifyStatus.textContent = error.message;
     window.alert(error.message);
   } finally {
-    fetchSpotifyButton.disabled = false;
-    fetchLastfmButton.disabled = false;
-    button.textContent = idleText;
+    Object.values(metadataProviders).forEach((item) => {
+      item.button.disabled = false;
+      item.button.textContent = item.idleText;
+    });
   }
 }
 
@@ -601,6 +619,10 @@ fetchSpotifyButton.addEventListener("click", async () => {
 
 fetchLastfmButton.addEventListener("click", async () => {
   await fetchExternalAlbumMetadata("lastfm");
+});
+
+fetchMusicBrainzButton.addEventListener("click", async () => {
+  await fetchExternalAlbumMetadata("musicbrainz");
 });
 
 window.addEventListener("pointermove", (event) => {

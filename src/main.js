@@ -3,6 +3,7 @@ const path = require("node:path");
 const { loadDotEnv } = require("./main/env");
 const { applyFolderWorkflow, getFolderAudioFiles } = require("./main/folderWorkflow");
 const { fetchLastfmAlbumMetadata } = require("./main/lastfm");
+const { fetchMusicBrainzAlbumMetadata } = require("./main/musicbrainz");
 const { fetchSpotifyAlbumMetadata } = require("./main/spotify");
 
 loadDotEnv();
@@ -75,6 +76,10 @@ ipcMain.handle("spotify:album", async (_event, payload) => {
 
 ipcMain.handle("lastfm:album", async (_event, payload) => {
   return fetchLastfmAlbumMetadata(payload);
+});
+
+ipcMain.handle("musicbrainz:album", async (_event, payload) => {
+  return fetchMusicBrainzAlbumMetadata(payload);
 });
 
 app.whenReady().then(() => {
