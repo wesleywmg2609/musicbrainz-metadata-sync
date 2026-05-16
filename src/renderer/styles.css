@@ -361,7 +361,6 @@ td span {
   box-shadow: 0 18px 45px rgba(15, 20, 18, 0.28);
   color: #ffffff;
   display: none;
-  gap: 8px;
   max-height: min(520px, calc(100vh - 24px));
   max-width: min(720px, calc(100vw - 24px));
   min-width: 340px;
@@ -382,11 +381,11 @@ td span {
 .metadata-tooltip-section {
   column-gap: 18px;
   display: grid;
-  row-gap: 6px;
+  row-gap: 2px;
   grid-template-columns: max-content minmax(0, 1fr);
 }
 
-.metadata-tooltip-section + .metadata-tooltip-section {
+.metadata-tooltip-section+.metadata-tooltip-section {
   border-top: 1px solid rgba(255, 255, 255, 0.14);
   margin-top: 4px;
   padding-top: 10px;
@@ -399,18 +398,14 @@ td span {
   grid-column: 1 / -1;
   letter-spacing: 0;
   margin: 0;
+  padding-bottom: 2px;
 }
 
 .metadata-tooltip-row {
   display: contents;
 }
 
-.metadata-tooltip-row > span,
-.metadata-tooltip-row > strong {
-  padding-top: 2px;
-}
-
-.metadata-tooltip-row > span {
+.metadata-tooltip-row>span {
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -438,9 +433,15 @@ td span {
   word-break: break-word;
 }
 
+.metadata-tooltip-row span,
+.metadata-tooltip-row strong {
+  align-self: start;
+  line-height: 16px;
+  min-height: 16px;
+}
+
 .metadata-change-values {
   display: grid;
-  gap: 3px;
 }
 
 .metadata-change-values,

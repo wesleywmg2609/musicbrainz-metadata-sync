@@ -234,6 +234,7 @@ function isKeyMetadataTag(key) {
     "artist",
     "albumartist",
     "date",
+    "genre",
     "disc",
     "track"
   ]);
@@ -252,6 +253,7 @@ function renderMetadataTooltipContent(tooltip, file) {
     ["Artist", currentMetadata.artist, targetMetadata.artist],
     ["Album Artist", currentMetadata.albumArtist, targetMetadata.albumArtist],
     ["Date", currentMetadata.date, targetMetadata.date],
+    ["Genre", currentMetadata.genre, targetMetadata.genre],
     ["DISC", currentMetadata.disc, targetMetadata.disc],
     ["TRACK", currentMetadata.track, targetMetadata.track]
   ];
@@ -270,19 +272,20 @@ function renderMetadataTooltipContent(tooltip, file) {
   tooltip.append(keySection);
 
   if (rawTags.length > 0 || flacTags.length > 0) {
-    rawTags.forEach(([key, value]) => {
-      const flacTag = flacTags.find(([tagKey]) => normalizeMetadataKey(tagKey) === normalizeMetadataKey(key));
-      const targetValue = flacTag
-        ? formatFlacTagValue(flacTag[1])
-        : (file.fetchedMetadata ? "" : undefined);
+    const additionalRows = [];
 
-      otherSection.append(
-        createMetadataLine(
-          formatMetadataLabel(key),
-          value,
-          targetValue
-        )
+    rawTags.forEach(([key, value]) => {
+      const flacTag = flacTags.find(
+        ([tagKey]) => normalizeMetadataKey(tagKey) === normalizeMetadataKey(key)
       );
+
+      additionalRows.push({
+        label: formatMetadataLabel(key),
+        currentValue: value,
+        targetValue: flacTag
+          ? formatFlacTagValue(flacTag[1])
+          : (file.fetchedMetadata ? "" : undefined)
+      });
     });
 
     flacTags.forEach(([key, value]) => {
@@ -290,14 +293,20 @@ function renderMetadataTooltipContent(tooltip, file) {
         return;
       }
 
-      otherSection.append(
-        createMetadataLine(
-          formatMetadataLabel(key),
-          "",
-          formatFlacTagValue(value)
-        )
-      );
+      additionalRows.push({
+        label: formatMetadataLabel(key),
+        currentValue: "",
+        targetValue: formatFlacTagValue(value)
+      });
     });
+
+    additionalRows
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .forEach((row) => {
+        otherSection.append(
+          createMetadataLine(row.label, row.currentValue, row.targetValue)
+        );
+      });
 
     tooltip.append(otherSection);
   }
