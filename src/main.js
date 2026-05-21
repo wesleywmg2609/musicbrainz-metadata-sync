@@ -1,6 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
 const path = require("node:path");
-const { applyFolderWorkflow, getFolderAudioFiles } = require("./main/folderWorkflow");
+const { applyLibraryWorkflow, getFolderAlbums } = require("./main/folderWorkflow");
 const { fetchMusicBrainzAlbumMetadata } = require("./main/musicbrainz");
 
 function createWindow() {
@@ -54,15 +54,17 @@ ipcMain.handle("folder:choose", async () => {
   }
 
   const folderPath = result.filePaths[0];
+  const albums = await getFolderAlbums(folderPath);
 
   return {
     folderPath,
-    files: await getFolderAudioFiles(folderPath)
+    albums,
+    files: albums.flatMap((album) => album.files)
   };
 });
 
 ipcMain.handle("folder:apply", async (_event, payload) => {
-  return applyFolderWorkflow(payload);
+  return applyLibraryWorkflow(payload);
 });
 
 ipcMain.handle("musicbrainz:album", async (_event, payload) => {

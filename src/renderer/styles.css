@@ -27,6 +27,30 @@ body {
   min-width: 760px;
 }
 
+body::-webkit-scrollbar,
+.table-wrap::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+body::-webkit-scrollbar-track,
+.table-wrap::-webkit-scrollbar-track {
+  background: #e4e9ee;
+  border-radius: 999px;
+}
+
+body::-webkit-scrollbar-thumb,
+.table-wrap::-webkit-scrollbar-thumb {
+  background: #aab6c0;
+  border: 2px solid #e4e9ee;
+  border-radius: 999px;
+}
+
+body::-webkit-scrollbar-thumb:hover,
+.table-wrap::-webkit-scrollbar-thumb:hover {
+  background: #8796a2;
+}
+
 button {
   font: inherit;
 }
@@ -193,31 +217,6 @@ button:active:not(:disabled) {
   padding: 9px 12px;
 }
 
-.folder-preview {
-  background: linear-gradient(180deg, #fbfcfd 0, #f5f7f8 100%);
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  display: grid;
-  gap: 8px;
-  grid-column: 1 / -1;
-  padding: 14px;
-}
-
-.folder-preview span {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.folder-preview strong {
-  color: #16211e;
-  font-size: 15px;
-  font-weight: 750;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
 .file-panel {
   overflow: hidden;
 }
@@ -300,11 +299,116 @@ tbody tr:hover {
   background: #f3f8f6;
 }
 
+.album-group-row {
+  background: #e8eef3;
+  color: #31465a;
+  font-size: 12px;
+  font-weight: 850;
+  grid-column: 1 / -1;
+  letter-spacing: 0;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.album-folder-toggle {
+  align-items: center;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: inherit;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  justify-content: start;
+  min-height: 0;
+  padding: 11px 16px;
+  text-align: left;
+  text-transform: uppercase;
+  width: 100%;
+}
+
+.album-folder-toggle:hover:not(:disabled) {
+  background: rgba(49, 70, 90, 0.08);
+  box-shadow: none;
+  transform: none;
+}
+
+.album-folder-toggle-icon {
+  border-bottom: 2px solid #51605c;
+  border-right: 2px solid #51605c;
+  display: block;
+  height: 7px;
+  margin-left: 3px;
+  transform: rotate(45deg);
+  width: 7px;
+}
+
+.album-folder-toggle-icon.is-collapsed {
+  margin-left: 1px;
+  transform: rotate(-45deg);
+}
+
+.album-group-row .album-folder-names {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.album-group-row span {
+  display: inline;
+  font-size: 12px;
+  margin: 0;
+}
+
+.album-folder-old {
+  color: #c84f4f;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.album-folder-new {
+  color: #167a54;
+}
+
+.album-folder-unchanged {
+  color: #31465a;
+}
+
+.file-name-old {
+  color: #c84f4f;
+}
+
+.file-name-new {
+  color: #167a54;
+}
+
+.file-name-unchanged {
+  color: #1c2522;
+}
+
+td .file-location-old {
+  color: #c84f4f;
+}
+
+td .file-location-new {
+  color: #167a54;
+}
+
+td .file-location-unchanged {
+  color: var(--text-soft);
+}
+
 td span {
   color: var(--text-soft);
   display: block;
   font-size: 12px;
   margin-top: 3px;
+}
+
+td > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metadata-header {
@@ -371,6 +475,25 @@ td span {
   transform: translateY(6px);
   transition: opacity 120ms ease, transform 120ms ease;
   z-index: 1000;
+}
+
+.metadata-tooltip::-webkit-scrollbar {
+  width: 10px;
+}
+
+.metadata-tooltip::-webkit-scrollbar-track {
+  background: #101713;
+  border-radius: 999px;
+}
+
+.metadata-tooltip::-webkit-scrollbar-thumb {
+  background: #53625d;
+  border: 2px solid #101713;
+  border-radius: 999px;
+}
+
+.metadata-tooltip::-webkit-scrollbar-thumb:hover {
+  background: #6f8079;
 }
 
 .metadata-tooltip.is-visible {

@@ -166,6 +166,27 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
   };
 }
 
+async function applyLibraryWorkflow({ albums = [] }) {
+  const updatedAlbums = [];
+  let movedCount = 0;
+
+  for (const album of albums) {
+    const result = await applyFolderWorkflow(album);
+
+    updatedAlbums.push({
+      folderPath: result.folderPath,
+      folderName: path.basename(result.folderPath),
+      files: result.files
+    });
+    movedCount += result.movedCount;
+  }
+
+  return {
+    albums: updatedAlbums,
+    movedCount
+  };
+}
+
 async function renamePath(sourcePath, destinationPath, type = "path") {
   try {
     await fs.rename(sourcePath, destinationPath);
@@ -190,7 +211,79 @@ async function getFolderAudioFiles(folderPath) {
   return files;
 }
 
+function getAlbumMetadataKey(file) {
+  const metadata = file.metadata || {};
+  const artist = metadata.albumArtist || metadata.artist;
+  const album = metadata.album;
+
+  if (!artist || !album) {
+    return "";
+  }
+
+  return `${artist}\u0000${album}`.toLowerCase();
+}
+
+function getTopLevelAlbumFolder(rootFolderPath, file) {
+  const relativeFolder = path.relative(rootFolderPath, file.folder);
+
+  if (!relativeFolder || relativeFolder.startsWith("..") || path.isAbsolute(relativeFolder)) {
+    return rootFolderPath;
+  }
+
+  return path.join(rootFolderPath, relativeFolder.split(path.sep)[0]);
+}
+
+function groupFilesByFolder(rootFolderPath, files) {
+  const albumsByPath = new Map();
+
+  for (const file of files) {
+    const albumFolderPath = getTopLevelAlbumFolder(rootFolderPath, file);
+    const key = albumFolderPath.toLowerCase();
+
+    if (!albumsByPath.has(key)) {
+      albumsByPath.set(key, {
+        folderPath: albumFolderPath,
+        folderName: path.basename(albumFolderPath),
+        files: []
+      });
+    }
+
+    albumsByPath.get(key).files.push(file);
+  }
+
+  return [...albumsByPath.values()];
+}
+
+function isDiscFolderName(folderName) {
+  return /^(cd|disc|disk|vol|volume|part)\s*\d+$/i.test(folderName.trim());
+}
+
+async function getFolderAlbums(folderPath) {
+  const files = await getFolderAudioFiles(folderPath);
+  const albumKeys = new Set(files.map(getAlbumMetadataKey).filter(Boolean));
+  const folderGroups = groupFilesByFolder(folderPath, files);
+  const hasOnlyDiscFolders = folderGroups.length > 1 &&
+    folderGroups.every((album) => isDiscFolderName(album.folderName));
+  const albums = albumKeys.size === 1 || folderGroups.length <= 1 || hasOnlyDiscFolders
+    ? [{
+      folderPath,
+      folderName: path.basename(folderPath),
+      files
+    }]
+    : folderGroups;
+
+  albums.forEach((album) => {
+    sortFilesByMetadata(album.files);
+  });
+
+  albums.sort((a, b) => a.folderPath.localeCompare(b.folderPath));
+
+  return albums;
+}
+
 module.exports = {
   applyFolderWorkflow,
+  applyLibraryWorkflow,
+  getFolderAlbums,
   getFolderAudioFiles
 };

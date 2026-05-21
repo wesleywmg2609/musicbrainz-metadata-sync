@@ -4,13 +4,13 @@ Electron app for matching local music files with MusicBrainz metadata.
 
 ## Features
 
-- Choose a local music folder.
+- Choose a local album folder or a parent folder containing multiple album folders.
 - Read existing audio metadata with `ffprobe`.
 - Sort files by disc and track number.
 - Fetch MusicBrainz release metadata from artist and album search.
 - Preview fetched title, album, artist, album artist, disc, and track data.
 - Preview the target folder name from fetched metadata.
-- Apply folder cleanup by renaming the album folder and moving nested audio files into the folder root.
+- Apply folder cleanup by renaming each album folder and moving nested audio files into that album folder root.
 
 The app previews fetched metadata before applying folder and FLAC tag changes.
 
@@ -46,7 +46,7 @@ npm.cmd run dev
 ## Workflow
 
 1. Start the app.
-2. Choose a music folder.
+2. Choose an album folder, or choose a parent folder that contains multiple album folders.
 3. Confirm or edit the Artist and Album fields.
 4. Click **MusicBrainz**.
 5. Review the preview table.
