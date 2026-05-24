@@ -2,6 +2,7 @@ const { compareNullableNumbers } = require("./audio");
 const packageJson = require("../../package.json");
 
 const musicBrainzBaseUrl = "https://musicbrainz.org/ws/2";
+const coverArtArchiveBaseUrl = "https://coverartarchive.org";
 let lastMusicBrainzRequestAt = 0;
 
 function sleep(ms) {
@@ -37,6 +38,25 @@ async function fetchMusicBrainzJson(path, searchParams = {}) {
   }
 
   lastMusicBrainzRequestAt = Date.now();
+
+  return response.json();
+}
+
+async function fetchCoverArtArchiveJson(path) {
+  const response = await fetch(`${coverArtArchiveBaseUrl}${path}`, {
+    headers: {
+      "User-Agent": getMusicBrainzUserAgent(),
+      Accept: "application/json"
+    }
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Cover Art Archive request failed: ${response.status}`);
+  }
 
   return response.json();
 }
@@ -217,6 +237,7 @@ function buildMusicBrainzFlacTags(track, release, medium, disc, discNumber, genr
     ["ALBUMARTIST", albumArtist],
     ["DATE", release.date],
     ["GENRE", genre],
+    ["TRACK", track.number],
     ["TRACKNUMBER", track.number],
     ["DISC", disc],
     ["MUSICBRAINZ_ALBUMID", release.id],
@@ -248,15 +269,44 @@ function buildMusicBrainzFlacTags(track, release, medium, disc, discNumber, genr
   return tags;
 }
 
-function normalizeMusicBrainzTrack(track, release, medium, isMultiDisc) {
+function getCoverArtUrls(image) {
+  if (!image) {
+    return null;
+  }
+
+  return {
+    original: image.image || "",
+    embed: image.thumbnails?.["1200"] || ""
+  };
+}
+
+async function fetchReleaseCoverArt(releaseId) {
+  if (!releaseId) {
+    return null;
+  }
+
+  try {
+    const data = await fetchCoverArtArchiveJson(`/release/${releaseId}`);
+    const images = Array.isArray(data?.images) ? data.images : [];
+    const frontImage = images.find((image) => image.front) || images[0];
+    const coverArt = getCoverArtUrls(frontImage);
+
+    return coverArt?.original || coverArt?.embed ? coverArt : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeMusicBrainzTrack(track, release, medium, isMultiDisc, coverArt) {
   const recording = track.recording || {};
   const trackNumber = Number.isFinite(track.position)
     ? track.position
     : null;
   const trackTag = String(track.number || "");
-  const discNumber = isMultiDisc && Number.isFinite(medium.position)
+  const discNumber = Number.isFinite(medium.position)
     ? medium.position
     : null;
+  const discTag = discNumber ? String(discNumber) : "";
   const artist = getTrackArtist(track, release);
   const albumArtist = getArtistCreditName(release["artist-credit"]);
   const genre = getGenreNames(recording, release, release["release-group"]).join(", ");
@@ -264,7 +314,7 @@ function normalizeMusicBrainzTrack(track, release, medium, isMultiDisc) {
   return {
     musicbrainzReleaseId: release.id || "",
     musicbrainzRecordingId: recording.id || "",
-    disc: discNumber ? String(discNumber) : "",
+    disc: discTag,
     discNumber,
     track: trackTag,
     trackNumber,
@@ -274,17 +324,18 @@ function normalizeMusicBrainzTrack(track, release, medium, isMultiDisc) {
     album: release.title || "",
     date: release.date || "",
     genre,
-    flacTags: buildMusicBrainzFlacTags(track, release, medium, discNumber ? String(discNumber) : "", discNumber, genre)
+    coverArt,
+    flacTags: buildMusicBrainzFlacTags(track, release, medium, discTag, discNumber, genre)
   };
 }
 
-function normalizeMusicBrainzTracks(release) {
+function normalizeMusicBrainzTracks(release, coverArt) {
   const media = Array.isArray(release.media) ? release.media : [];
   const isMultiDisc = media.length > 1;
 
   return media.flatMap((medium) =>
     (medium.tracks || []).map((track) =>
-      normalizeMusicBrainzTrack(track, release, medium, isMultiDisc)
+      normalizeMusicBrainzTrack(track, release, medium, isMultiDisc, coverArt)
     )
   ).filter((track) => track.title);
 }
@@ -306,7 +357,8 @@ async function fetchMusicBrainzAlbumMetadata(payload) {
   const releaseData = await fetchMusicBrainzJson(`/release/${musicBrainzRelease.id}`, {
     inc: "recordings+artist-credits+release-groups+labels+isrcs+genres"
   });
-  const tracks = normalizeMusicBrainzTracks(releaseData);
+  const coverArt = await fetchReleaseCoverArt(releaseData.id);
+  const tracks = normalizeMusicBrainzTracks(releaseData, coverArt);
 
   if (tracks.length === 0) {
     throw new Error(`MusicBrainz did not return tracks for "${artist} - ${album}".`);
@@ -321,6 +373,7 @@ async function fetchMusicBrainzAlbumMetadata(payload) {
     album: releaseData.title || "",
     albumArtist: getArtistCreditName(releaseData["artist-credit"]),
     musicbrainzUrl: `https://musicbrainz.org/release/${releaseData.id}`,
+    coverArt,
     tracks
   };
 }

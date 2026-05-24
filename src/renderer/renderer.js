@@ -35,6 +35,12 @@ let selectedFolderPath = "";
 let fetchedAlbum = null;
 let activeMetadataTooltip = null;
 let lastPointerPosition = null;
+let busyCount = 0;
+
+function setBusy(isBusy) {
+  busyCount = Math.max(0, busyCount + (isBusy ? 1 : -1));
+  document.body.classList.toggle("is-busy", busyCount > 0);
+}
 
 function hideActiveMetadataTooltip() {
   if (!activeMetadataTooltip) {
@@ -157,7 +163,20 @@ function formatMetadataValue(value, options = {}) {
     return options.blankEmpty ? "" : "empty";
   }
 
-  return String(value);
+  return Array.isArray(value) ? value.join(";") : String(value);
+}
+
+function normalizeMetadataComparisonValue(value) {
+  const values = Array.isArray(value)
+    ? value
+    : String(value ?? "")
+      .split(";")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  return values.length > 0
+    ? values.join("\u0000")
+    : String(value ?? "").trim();
 }
 
 function hasMetadataValue(value) {
@@ -170,6 +189,8 @@ function createMetadataLine(label, currentValue, targetValue, options = {}) {
   const valueElement = document.createElement("strong");
   const currentText = formatMetadataValue(currentValue, options);
   const targetText = formatMetadataValue(targetValue, options);
+  const currentComparable = normalizeMetadataComparisonValue(currentValue);
+  const targetComparable = normalizeMetadataComparisonValue(targetValue);
   const hasTargetValue = targetValue !== undefined;
   const hasCurrentValue = hasMetadataValue(currentValue);
   const isRemovingValue = hasTargetValue && (
@@ -180,7 +201,7 @@ function createMetadataLine(label, currentValue, targetValue, options = {}) {
   row.className = "metadata-tooltip-row";
   labelElement.textContent = label.toUpperCase();
 
-  if (hasTargetValue && currentText !== targetText) {
+  if (hasTargetValue && currentComparable !== targetComparable) {
     const oldValue = document.createElement("span");
 
     row.classList.add("metadata-change");
@@ -234,10 +255,6 @@ function getSortedMetadataEntries(metadata = {}) {
     .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
 }
 
-function formatFlacTagValue(value) {
-  return Array.isArray(value) ? value.join(", ") : value;
-}
-
 function normalizeMetadataKey(key) {
   return String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -251,7 +268,9 @@ function isKeyMetadataTag(key) {
     "date",
     "genre",
     "disc",
-    "track"
+    "track",
+    "discnumber",
+    "tracknumber"
   ]);
 
   return keyMetadataTags.has(normalizeMetadataKey(key));
@@ -298,7 +317,7 @@ function renderMetadataTooltipContent(tooltip, file) {
         label: formatMetadataLabel(key),
         currentValue: value,
         targetValue: flacTag
-          ? formatFlacTagValue(flacTag[1])
+          ? flacTag[1]
           : (file.fetchedMetadata ? "" : undefined)
       });
     });
@@ -311,7 +330,7 @@ function renderMetadataTooltipContent(tooltip, file) {
       additionalRows.push({
         label: formatMetadataLabel(key),
         currentValue: "",
-        targetValue: formatFlacTagValue(value)
+        targetValue: value
       });
     });
 
@@ -515,6 +534,7 @@ function renderFiles(options = {}) {
 }
 
 chooseFolderButton.addEventListener("click", async () => {
+  setBusy(true);
   chooseFolderButton.disabled = true;
   chooseFolderButton.textContent = "Choosing...";
 
@@ -524,7 +544,9 @@ chooseFolderButton.addEventListener("click", async () => {
     if (result) {
       folderLabel.textContent = result.folderPath;
       selectedFolderPath = result.folderPath;
-      selectedAlbums = normalizeSelectedAlbums(result);
+      selectedAlbums = normalizeSelectedAlbums(result, {
+        defaultExpanded: false
+      });
       selectedFiles = selectedAlbums.flatMap((album) => album.files);
       fetchedAlbum = null;
       metadataStatus.textContent = "Metadata not loaded.";
@@ -533,6 +555,7 @@ chooseFolderButton.addEventListener("click", async () => {
   } finally {
     chooseFolderButton.disabled = false;
     chooseFolderButton.textContent = "Choose Folder";
+    setBusy(false);
   }
 });
 
@@ -554,7 +577,8 @@ function getFetchedMetadataKey(track) {
   return `${track.discNumber}:${track.trackNumber}`;
 }
 
-function normalizeSelectedAlbums(result) {
+function normalizeSelectedAlbums(result, options = {}) {
+  const defaultExpanded = options.defaultExpanded !== false;
   const albums = Array.isArray(result.albums) && result.albums.length > 0
     ? result.albums
     : [{
@@ -566,7 +590,7 @@ function normalizeSelectedAlbums(result) {
   return albums.map((album) => ({
     ...album,
     folderName: album.folderName || getBaseName(album.folderPath),
-    expanded: album.expanded !== false,
+    expanded: album.expanded ?? defaultExpanded,
     fetchedAlbum: album.fetchedAlbum || null,
     files: album.files || []
   }));
@@ -613,6 +637,7 @@ async function fetchAlbumMusicBrainzMetadata(album) {
 }
 
 async function fetchMusicBrainzMetadata() {
+  setBusy(true);
   fetchMusicBrainzButton.disabled = true;
   fetchMusicBrainzButton.textContent = "Fetching...";
   metadataStatus.textContent = "Searching MusicBrainz...";
@@ -647,6 +672,7 @@ async function fetchMusicBrainzMetadata() {
   } finally {
     fetchMusicBrainzButton.disabled = false;
     fetchMusicBrainzButton.textContent = "MusicBrainz";
+    setBusy(false);
   }
 }
 
@@ -662,6 +688,7 @@ window.addEventListener("pointermove", (event) => {
 });
 
 applyButton.addEventListener("click", async () => {
+  setBusy(true);
   applyButton.disabled = true;
   applyButton.textContent = "Applying...";
 
@@ -693,6 +720,7 @@ applyButton.addEventListener("click", async () => {
   } finally {
     applyButton.textContent = "Apply Changes";
     renderFiles();
+    setBusy(false);
   }
 });
 

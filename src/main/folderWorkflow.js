@@ -3,8 +3,11 @@ const path = require("node:path");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { addMetadata, sortFilesByMetadata, walkAudioFiles } = require("./audio");
+const packageJson = require("../../package.json");
 
 const execFileAsync = promisify(execFile);
+const keptAlbumFileNames = new Set(["cover.jpg", "original.jpg"]);
+const keptAlbumFileExtensions = new Set([".flac", ".mp3", ".m4a", ".wav", ".ogg"]);
 
 function cleanFileName(name) {
   return name
@@ -35,6 +38,62 @@ async function pathExists(filePath) {
   }
 }
 
+function shouldKeepAlbumFile(filePath, albumFolderPath) {
+  const fileName = path.basename(filePath).toLowerCase();
+  const isAlbumRootFile = path.dirname(filePath).toLowerCase() === albumFolderPath.toLowerCase();
+
+  return (isAlbumRootFile && keptAlbumFileNames.has(fileName)) ||
+    keptAlbumFileExtensions.has(path.extname(fileName));
+}
+
+async function removeAlbumCoverFiles(folderPath) {
+  const entries = await fs.readdir(folderPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryPath = path.join(folderPath, entry.name);
+
+    if (entry.isDirectory()) {
+      await removeAlbumCoverFiles(entryPath);
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.toLowerCase() === "cover.jpg") {
+      await fs.rm(entryPath, {
+        force: true
+      });
+    }
+  }
+}
+
+async function cleanupAlbumFolder(folderPath, albumFolderPath = folderPath) {
+  const entries = await fs.readdir(folderPath, { withFileTypes: true });
+  const directories = [];
+
+  for (const entry of entries) {
+    const entryPath = path.join(folderPath, entry.name);
+
+    if (entry.isDirectory()) {
+      directories.push(entryPath);
+      await cleanupAlbumFolder(entryPath, albumFolderPath);
+      continue;
+    }
+
+    if (entry.isFile() && !shouldKeepAlbumFile(entryPath, albumFolderPath)) {
+      await fs.rm(entryPath, {
+        force: true
+      });
+    }
+  }
+
+  for (const directoryPath of directories) {
+    const remainingEntries = await fs.readdir(directoryPath);
+
+    if (remainingEntries.length === 0) {
+      await fs.rmdir(directoryPath);
+    }
+  }
+}
+
 async function clearFlacMetadata(filePath) {
   if (path.extname(filePath).toLowerCase() !== ".flac") {
     return;
@@ -51,7 +110,86 @@ async function clearFlacMetadata(filePath) {
   }
 }
 
-async function writeFlacMetadata(filePath, metadata) {
+function getMusicBrainzUserAgent() {
+  return `${packageJson.name}/${packageJson.version} (local metadata sync app)`;
+}
+
+async function downloadFile(url, destinationPath) {
+  if (!url) {
+    return false;
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": getMusicBrainzUserAgent()
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Artwork download failed: ${response.status}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  await fs.writeFile(destinationPath, buffer);
+  return true;
+}
+
+function getAlbumCoverArt(files) {
+  return files.find((file) =>
+    file.fetchedMetadata?.coverArt?.original ||
+    file.fetchedMetadata?.coverArt?.embed
+  )?.fetchedMetadata?.coverArt || null;
+}
+
+async function prepareAlbumArtwork(targetFolderPath, files) {
+  const coverArt = getAlbumCoverArt(files);
+
+  if (!coverArt?.embed && !coverArt?.original) {
+    return null;
+  }
+
+  const coverPath = path.join(targetFolderPath, "cover.jpg");
+  const originalPath = path.join(targetFolderPath, "original.jpg");
+
+  if (coverArt.embed) {
+    await downloadFile(coverArt.embed, coverPath);
+  }
+
+  if (coverArt.original) {
+    await downloadFile(coverArt.original, originalPath);
+  }
+
+  return {
+    embedPath: coverArt.embed ? coverPath : ""
+  };
+}
+
+async function embedFlacArtwork(filePath, artworkPath) {
+  if (!artworkPath || path.extname(filePath).toLowerCase() !== ".flac") {
+    return;
+  }
+
+  try {
+    await execFileAsync("metaflac", [
+      "--remove",
+      "--block-type=PICTURE",
+      "--dont-use-padding",
+      filePath
+    ]);
+    await execFileAsync("metaflac", [
+      `--import-picture-from=${artworkPath}`,
+      filePath
+    ]);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      throw new Error("metaflac is required to write FLAC artwork.");
+    }
+
+    throw error;
+  }
+}
+
+async function writeFlacMetadata(filePath, metadata, artworkPath = "") {
   if (path.extname(filePath).toLowerCase() !== ".flac") {
     return;
   }
@@ -92,6 +230,8 @@ async function writeFlacMetadata(filePath, metadata) {
       throw error;
     }
   }
+
+  await embedFlacArtwork(filePath, artworkPath);
 }
 
 async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
@@ -110,6 +250,8 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
     }
   }
 
+  await removeAlbumCoverFiles(targetFolderPath);
+
   const audioFiles = await walkAudioFiles(targetFolderPath);
 
   let movedCount = 0;
@@ -125,6 +267,8 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
     movedCount += 1;
   }
 
+  const albumArtwork = await prepareAlbumArtwork(targetFolderPath, files);
+
   for (const file of files) {
     if (!file.fetchedMetadata) {
       continue;
@@ -135,7 +279,7 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
       path.basename(file.path)
     );
 
-    await writeFlacMetadata(currentPath, file.fetchedMetadata);
+    await writeFlacMetadata(currentPath, file.fetchedMetadata, albumArtwork?.embedPath);
 
     const newFileName = buildFetchedFileName(
       file.fetchedMetadata,
@@ -152,6 +296,8 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
       await renamePath(currentPath, destinationPath, "file");
     }
   }
+
+  await cleanupAlbumFolder(targetFolderPath);
 
   const updatedFiles = await addMetadata(
     await walkAudioFiles(targetFolderPath)

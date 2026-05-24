@@ -8,9 +8,12 @@ Electron app for matching local music files with MusicBrainz metadata.
 - Read existing audio metadata with `ffprobe`.
 - Sort files by disc and track number.
 - Fetch MusicBrainz release metadata from artist and album search.
+- Fetch MusicBrainz Cover Art Archive artwork.
 - Preview fetched title, album, artist, album artist, disc, and track data.
 - Preview the target folder name from fetched metadata.
 - Apply folder cleanup by renaming each album folder and moving nested audio files into that album folder root.
+- Save 1200px album artwork as `cover.jpg`, embed it in FLAC files, and save original artwork as `original.jpg`.
+- Remove non-audio sidecar files and empty folders from the album folder after applying changes.
 
 The app previews fetched metadata before applying folder and FLAC tag changes.
 
@@ -19,7 +22,7 @@ The app previews fetched metadata before applying folder and FLAC tag changes.
 - Node.js
 - npm
 - FFmpeg / `ffprobe`
-- FLAC tools / `metaflac` for replacing FLAC metadata fields
+- FLAC tools / `metaflac` for replacing FLAC metadata fields and embedded artwork
 
 ## Setup
 

@@ -27,6 +27,11 @@ body {
   min-width: 760px;
 }
 
+body.is-busy,
+body.is-busy button:disabled {
+  cursor: wait;
+}
+
 body::-webkit-scrollbar,
 .table-wrap::-webkit-scrollbar {
   height: 10px;
@@ -150,7 +155,7 @@ button:active:not(:disabled) {
 #chooseFolderButton:disabled,
 #applyButton:disabled,
 #fetchMusicBrainzButton:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.62;
 }
 

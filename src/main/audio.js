@@ -57,8 +57,8 @@ async function readAudioMetadata(filePath) {
     ]);
     const data = JSON.parse(stdout);
     const tags = data.format?.tags || {};
-    const track = getFirstTagValue(tags, ["track"]);
-    const trackNumber = getFirstTagValue(tags, ["tracknumber"]);
+    const track = getFirstTagValue(tags, ["track", "tracknumber"]);
+    const trackNumber = getFirstTagValue(tags, ["tracknumber", "track"]);
     const disc = getFirstTagValue(tags, ["disc"]);
     const discNumber = getFirstTagValue(tags, ["discnumber"]);
 
