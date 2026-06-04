@@ -207,6 +207,96 @@ function buildPreviewName(file) {
   return `${track}. ${title}${extension}`;
 }
 
+function getAlbumMetadata(album) {
+  return album?.files.find(
+    (file) =>
+      file.metadata?.album &&
+      (file.metadata?.albumArtist || file.metadata?.artist)
+  )?.metadata || null;
+}
+
+function getAlbumDisplayName(metadata) {
+  const artist = metadata?.albumArtist || metadata?.artist;
+  const album = metadata?.album;
+
+  return [artist, album].filter(Boolean).join(" - ") || "unknown album";
+}
+
+function getFetchedAlbumDisplayName(album) {
+  if (album.fetchError) {
+    return `failed: ${album.fetchError}`;
+  }
+
+  if (!album.fetchedAlbum) {
+    return "not fetched";
+  }
+
+  return getAlbumDisplayName({
+    albumArtist: album.fetchedAlbum.albumArtist,
+    album: album.fetchedAlbum.album
+  });
+}
+
+function buildMusicBrainzFetchReport() {
+  const lines = [
+    "Album folder comparison report",
+    `Generated: ${new Date().toLocaleString()}`,
+    `Root folder: ${selectedFolderPath || "unknown"}`,
+    "",
+    `Albums: ${selectedAlbums.length}`,
+    ""
+  ];
+
+  selectedAlbums.forEach((album, albumIndex) => {
+    const metadata = getAlbumMetadata(album);
+    const currentFolderName = getBaseName(album.folderPath);
+    const targetFolderName = buildFolderName(album) || currentFolderName;
+    const currentFolderPath = album.folderPath || "";
+    const targetFolderPath = buildTargetFolderPath(album);
+    const folderComparison = normalizeComparableFileName(currentFolderName) ===
+      normalizeComparableFileName(targetFolderName)
+      ? "same"
+      : "changed";
+
+    lines.push(
+      `Album ${albumIndex + 1}`,
+      `Folder: ${folderComparison}`,
+      `  current name: ${currentFolderName}`,
+      `  target name:  ${targetFolderName}`,
+      `  current path: ${currentFolderPath}`,
+      `  target path:  ${targetFolderPath}`,
+      `Local album: ${getAlbumDisplayName(metadata)}`,
+      `Fetched album: ${getFetchedAlbumDisplayName(album)}`,
+      `MusicBrainz URL: ${album.fetchedAlbum?.musicbrainzUrl || ""}`,
+      "Filename comparison:"
+    );
+
+    album.files.forEach((file, fileIndex) => {
+      const targetName = file.fetchedMetadata ? buildPreviewName(file) : "not fetched";
+      const comparison = file.fetchedMetadata && file.name !== targetName
+        ? "changed"
+        : (file.fetchedMetadata ? "same" : "missing");
+
+      lines.push(
+        `  ${fileIndex + 1}. ${comparison}`,
+        `     current: ${file.name}`,
+        `     target:  ${targetName}`
+      );
+    });
+
+    lines.push("");
+  });
+
+  return `${lines.join("\n")}\n`;
+}
+
+async function writeMusicBrainzFetchReport() {
+  return window.musicMetadataSync.writeReport({
+    folderPath: selectedFolderPath,
+    content: buildMusicBrainzFetchReport()
+  });
+}
+
 function formatMetadataValue(value, options = {}) {
   if (value === null || value === undefined || value === "") {
     return options.blankEmpty ? "" : "empty";
@@ -668,11 +758,7 @@ function applyFetchedMetadata(album, albumData) {
 }
 
 async function fetchAlbumMusicBrainzMetadata(album) {
-  const metadata = album.files.find(
-    (file) =>
-      file.metadata?.album &&
-      (file.metadata?.albumArtist || file.metadata?.artist)
-  )?.metadata;
+  const metadata = getAlbumMetadata(album);
 
   const payload = {
     artist: metadata?.albumArtist || metadata?.artist,
@@ -682,6 +768,7 @@ async function fetchAlbumMusicBrainzMetadata(album) {
   const albumData = await window.musicMetadataSync.fetchMusicBrainzAlbum(payload);
 
   applyFetchedMetadata(album, albumData);
+  album.fetchError = "";
   return albumData;
 }
 
@@ -697,23 +784,37 @@ async function fetchMusicBrainzMetadata() {
 
     for (const album of selectedAlbums) {
       metadataStatus.textContent = `Searching MusicBrainz for ${getBaseName(album.folderPath)}...`;
+      album.fetchError = "";
+      album.fetchedAlbum = null;
+      album.files = album.files.map((file) => ({
+        ...file,
+        fetchedMetadata: null
+      }));
 
       try {
         loaded.push(await fetchAlbumMusicBrainzMetadata(album));
       } catch (error) {
-        failed.push(`${getBaseName(album.folderPath)}: ${error.message}`);
+        const message = error.message;
+
+        album.fetchError = message;
+        failed.push(`${getBaseName(album.folderPath)}: ${message}`);
       }
     }
 
     fetchedAlbum = selectedAlbums.length === 1 ? selectedAlbums[0].fetchedAlbum : null;
+    metadataStatus.textContent = "Writing MusicBrainz fetch report...";
+    const report = await writeMusicBrainzFetchReport();
+    const reportMessage = report?.reportPath
+      ? ` Report: ${report.reportPath}`
+      : "";
 
     if (loaded.length === 0 && failed.length > 0) {
-      throw new Error(failed.join("\n"));
+      throw new Error(`${failed.join("\n")}${reportMessage}`);
     }
 
     metadataStatus.textContent = failed.length > 0
-      ? `Loaded ${loaded.length} album metadata set${loaded.length === 1 ? "" : "s"}. Failed: ${failed.join(" | ")}`
-      : `Loaded ${loaded.length} album metadata set${loaded.length === 1 ? "" : "s"} from MusicBrainz.`;
+      ? `Loaded ${loaded.length} album metadata set${loaded.length === 1 ? "" : "s"}. Failed: ${failed.join(" | ")}.${reportMessage}`
+      : `Loaded ${loaded.length} album metadata set${loaded.length === 1 ? "" : "s"} from MusicBrainz.${reportMessage}`;
     renderFiles({ restoreActiveTooltip: true });
   } catch (error) {
     const message = getErrorMessage(error);

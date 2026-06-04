@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
+const fs = require("node:fs/promises");
 const path = require("node:path");
 const { applyLibraryWorkflow, getFolderAlbums } = require("./main/folderWorkflow");
 const { fetchMusicBrainzAlbumMetadata } = require("./main/musicbrainz");
@@ -69,6 +70,17 @@ ipcMain.handle("folder:apply", async (_event, payload) => {
 
 ipcMain.handle("musicbrainz:album", async (_event, payload) => {
   return fetchMusicBrainzAlbumMetadata(payload);
+});
+
+ipcMain.handle("report:write", async (_event, payload) => {
+  const content = String(payload?.content || "");
+  const reportPath = path.join(process.cwd(), "log.txt");
+
+  await fs.writeFile(reportPath, content, "utf8");
+
+  return {
+    reportPath
+  };
 });
 
 app.whenReady().then(() => {

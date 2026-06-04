@@ -3,5 +3,6 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("musicMetadataSync", {
   chooseFolder: () => ipcRenderer.invoke("folder:choose"),
   applyFolderWorkflow: (payload) => ipcRenderer.invoke("folder:apply", payload),
-  fetchMusicBrainzAlbum: (payload) => ipcRenderer.invoke("musicbrainz:album", payload)
+  fetchMusicBrainzAlbum: (payload) => ipcRenderer.invoke("musicbrainz:album", payload),
+  writeReport: (payload) => ipcRenderer.invoke("report:write", payload)
 });
