@@ -4,6 +4,10 @@ const packageJson = require("../../package.json");
 const musicBrainzBaseUrl = "https://musicbrainz.org/ws/2";
 const coverArtArchiveBaseUrl = "https://coverartarchive.org";
 const retryableMusicBrainzStatuses = new Set([429, 502, 503, 504]);
+const cp437ExtendedCharacters = "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
+const cp437ByteByCharacter = new Map(
+  [...cp437ExtendedCharacters].map((character, index) => [character, index + 0x80])
+);
 let lastMusicBrainzRequestAt = 0;
 
 function sleep(ms) {
@@ -104,6 +108,107 @@ function normalizeSearchText(value) {
     .trim();
 }
 
+function containsJapaneseText(value) {
+  return /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(value);
+}
+
+function decodeCp437Mojibake(value) {
+  const text = String(value || "");
+
+  if (!text || containsJapaneseText(text)) {
+    return text;
+  }
+
+  const bytes = [];
+  let hasExtendedCharacter = false;
+
+  for (const character of text) {
+    const codePoint = character.codePointAt(0);
+
+    if (codePoint <= 0x7f) {
+      bytes.push(codePoint);
+      continue;
+    }
+
+    const byte = cp437ByteByCharacter.get(character);
+
+    if (byte === undefined) {
+      return text;
+    }
+
+    hasExtendedCharacter = true;
+    bytes.push(byte);
+  }
+
+  if (!hasExtendedCharacter) {
+    return text;
+  }
+
+  const decoded = Buffer.from(bytes).toString("utf8");
+
+  return decoded.includes("\uFFFD") || !containsJapaneseText(decoded)
+    ? text
+    : decoded;
+}
+
+function repairSearchText(value) {
+  return decodeCp437Mojibake(value).trim();
+}
+
+function stripTrailingEpSuffix(value) {
+  return String(value || "")
+    .replace(/\s+-\s*EP$/iu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripTrailingParenthetical(value) {
+  const text = String(value || "").trim();
+  const stripped = text.replace(/\s*[\(\uFF08][^\)\uFF09]+[\)\uFF09]\s*$/u, "").trim();
+
+  return stripped || text;
+}
+
+function getAlbumSearchTexts(album) {
+  const repairedAlbum = repairSearchText(album);
+  const withoutEp = stripTrailingEpSuffix(repairedAlbum);
+  const withoutParenthetical = stripTrailingParenthetical(repairedAlbum);
+
+  return getUniqueSearchTexts(
+    album,
+    repairedAlbum,
+    withoutEp,
+    withoutParenthetical,
+    stripTrailingParenthetical(withoutEp),
+    stripTrailingEpSuffix(withoutParenthetical)
+  );
+}
+
+function getUniqueSearchTexts(...values) {
+  const seen = new Set();
+  const results = [];
+
+  values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .forEach((value) => {
+      const key = normalizeSearchText(value);
+
+      if (!key || seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+      results.push(value);
+    });
+
+  return results;
+}
+
+function quoteMusicBrainzQueryValue(value) {
+  return String(value || "").replace(/["\\]/g, " ");
+}
+
 function getArtistCreditName(artistCredit) {
   return Array.isArray(artistCredit)
     ? artistCredit.map((item) => item.name).filter(Boolean).join(", ")
@@ -178,7 +283,16 @@ function scoreMusicBrainzRelease(candidate, artist, album) {
   const candidateAlbum = normalizeSearchText(candidate.title);
   const candidateArtist = normalizeSearchText(getArtistCreditName(candidate["artist-credit"]));
 
-  if (!wantedArtist || !wantedAlbum || !candidateArtist.includes(wantedArtist)) {
+  if (!wantedAlbum || !candidateAlbum) {
+    return -1;
+  }
+
+  const artistMatches = wantedArtist && candidateArtist.includes(wantedArtist);
+  const albumStronglyMatches = candidateAlbum === wantedAlbum ||
+    candidateAlbum.includes(wantedAlbum) ||
+    wantedAlbum.includes(candidateAlbum);
+
+  if (wantedArtist && !artistMatches && !albumStronglyMatches) {
     return -1;
   }
 
@@ -197,6 +311,12 @@ function scoreMusicBrainzRelease(candidate, artist, album) {
     score += matchedWords.length * 8;
   }
 
+  if (artistMatches) {
+    score += 45;
+  } else if (wantedArtist) {
+    score -= 35;
+  }
+
   if (candidate.status === "Official") {
     score += 15;
   }
@@ -205,11 +325,25 @@ function scoreMusicBrainzRelease(candidate, artist, album) {
 }
 
 async function searchMusicBrainzReleases(artist, album) {
-  const queries = [
-    `artist:"${artist}" AND release:"${album}"`,
-    `"${artist}" "${album}"`,
-    `${artist} ${album}`
-  ];
+  const artists = getUniqueSearchTexts(artist, repairSearchText(artist));
+  const albums = getAlbumSearchTexts(album);
+  const queries = albums.flatMap((albumText) => {
+    const quotedAlbum = quoteMusicBrainzQueryValue(albumText);
+
+    return [
+      ...artists.flatMap((artistText) => {
+        const quotedArtist = quoteMusicBrainzQueryValue(artistText);
+
+        return [
+          `artist:"${quotedArtist}" AND release:"${quotedAlbum}"`,
+          `"${quotedArtist}" "${quotedAlbum}"`,
+          `${quotedArtist} ${quotedAlbum}`
+        ];
+      }),
+      `release:"${quotedAlbum}"`,
+      `"${quotedAlbum}"`
+    ];
+  });
   const seen = new Set();
   const candidates = [];
 
@@ -226,7 +360,11 @@ async function searchMusicBrainzReleases(artist, album) {
 
       seen.add(candidate.id);
 
-      const score = scoreMusicBrainzRelease(candidate, artist, album);
+      const score = Math.max(
+        ...artists.flatMap((artistText) =>
+          albums.map((albumText) => scoreMusicBrainzRelease(candidate, artistText, albumText))
+        )
+      );
 
       if (score >= 0) {
         candidates.push({
@@ -374,8 +512,8 @@ function normalizeMusicBrainzTracks(release, coverArt) {
 }
 
 async function fetchMusicBrainzAlbumMetadata(payload) {
-  const artist = String(payload.artist || "").trim();
-  const album = String(payload.album || "").trim();
+  const artist = repairSearchText(payload.artist);
+  const album = repairSearchText(payload.album);
 
   if (!artist || !album) {
     throw new Error("Artist and album are required before fetching MusicBrainz metadata.");
