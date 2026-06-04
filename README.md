@@ -1,4 +1,4 @@
-# Music Metadata Sync
+# MusicBrainz Metadata Sync
 
 Electron app for matching local music files with MusicBrainz metadata.
 

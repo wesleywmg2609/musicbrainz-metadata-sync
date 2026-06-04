@@ -1,5 +1,5 @@
 {
-  "name": "music-renamer",
+  "name": "musicbrainz-metadata-sync",
   "version": "0.1.0",
   "description": "Desktop UI for previewing music file rename workflows.",
   "main": "src/main.js",
