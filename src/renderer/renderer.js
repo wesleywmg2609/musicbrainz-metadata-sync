@@ -5,6 +5,11 @@ const fetchMusicBrainzButton = document.querySelector("#fetchMusicBrainzButton")
 const metadataStatus = document.querySelector("#metadataStatus");
 const fileCount = document.querySelector("#fileCount");
 const fileTableBody = document.querySelector("#fileTableBody");
+const applyConfirmDialog = document.querySelector("#applyConfirmDialog");
+const cancelApplyButton = document.querySelector("#cancelApplyButton");
+const errorDialog = document.querySelector("#errorDialog");
+const errorDialogMessage = document.querySelector("#errorDialogMessage");
+const closeErrorDialogButton = document.querySelector("#closeErrorDialogButton");
 
 const metadataLabelOverrides = new Map(
   [
@@ -40,6 +45,50 @@ let busyCount = 0;
 function setBusy(isBusy) {
   busyCount = Math.max(0, busyCount + (isBusy ? 1 : -1));
   document.body.classList.toggle("is-busy", busyCount > 0);
+}
+
+function getErrorMessage(error) {
+  return String(error?.message || error || "Something went wrong.")
+    .replace(/^Error invoking remote method '[^']+': Error:\s*/u, "")
+    .trim();
+}
+
+function confirmApplyChanges() {
+  return new Promise((resolve) => {
+    if (!applyConfirmDialog) {
+      resolve(false);
+      return;
+    }
+
+    const handleClose = () => {
+      applyConfirmDialog.removeEventListener("close", handleClose);
+      resolve(applyConfirmDialog.returnValue === "confirm");
+    };
+
+    applyConfirmDialog.addEventListener("close", handleClose);
+    applyConfirmDialog.returnValue = "cancel";
+    applyConfirmDialog.showModal();
+    cancelApplyButton?.focus();
+  });
+}
+
+function showErrorDialog(message) {
+  return new Promise((resolve) => {
+    if (!errorDialog || !errorDialogMessage) {
+      resolve();
+      return;
+    }
+
+    const handleClose = () => {
+      errorDialog.removeEventListener("close", handleClose);
+      resolve();
+    };
+
+    errorDialogMessage.textContent = message;
+    errorDialog.addEventListener("close", handleClose);
+    errorDialog.showModal();
+    closeErrorDialogButton?.focus();
+  });
 }
 
 function hideActiveMetadataTooltip() {
@@ -406,7 +455,7 @@ function renderFiles(options = {}) {
   selectedFiles = selectedAlbums.flatMap((album) => album.files);
   fileCount.textContent = `${selectedFiles.length} ${selectedFiles.length === 1 ? "file" : "files"}`;
 
-  applyButton.disabled = !selectedFolderPath || !selectedFiles.some((file) => file.fetchedMetadata);
+  applyButton.disabled = !selectedFolderPath || selectedFiles.length === 0;
   fileTableBody.replaceChildren();
 
   if (selectedFiles.length === 0) {
@@ -667,8 +716,10 @@ async function fetchMusicBrainzMetadata() {
       : `Loaded ${loaded.length} album metadata set${loaded.length === 1 ? "" : "s"} from MusicBrainz.`;
     renderFiles({ restoreActiveTooltip: true });
   } catch (error) {
-    metadataStatus.textContent = error.message;
-    window.alert(error.message);
+    const message = getErrorMessage(error);
+
+    metadataStatus.textContent = message;
+    await showErrorDialog(message);
   } finally {
     fetchMusicBrainzButton.disabled = false;
     fetchMusicBrainzButton.textContent = "MusicBrainz";
@@ -688,6 +739,12 @@ window.addEventListener("pointermove", (event) => {
 });
 
 applyButton.addEventListener("click", async () => {
+  const shouldApplyChanges = await confirmApplyChanges();
+
+  if (!shouldApplyChanges) {
+    return;
+  }
+
   setBusy(true);
   applyButton.disabled = true;
   applyButton.textContent = "Applying...";
@@ -716,7 +773,7 @@ applyButton.addEventListener("click", async () => {
     metadataStatus.textContent = "Metadata applied.";
     renderFiles();
   } catch (error) {
-    window.alert(error.message);
+    await showErrorDialog(getErrorMessage(error));
   } finally {
     applyButton.textContent = "Apply Changes";
     renderFiles();

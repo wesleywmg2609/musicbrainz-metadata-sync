@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Music Metadata Sync</title>
+  <title>MusicBrainz Metadata Sync</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 
@@ -12,7 +12,7 @@
   <main class="app-shell">
     <section class="toolbar" aria-label="Folder controls">
       <div>
-        <h1>Music Metadata Sync</h1>
+        <h1>MusicBrainz Metadata Sync</h1>
         <p id="folderLabel">No folder selected</p>
       </div>
       <div class="toolbar-actions">
@@ -54,6 +54,31 @@
       </div>
     </section>
   </main>
+
+  <dialog id="applyConfirmDialog" class="confirm-dialog" aria-labelledby="applyConfirmTitle">
+    <form method="dialog" class="confirm-dialog-panel">
+      <div>
+        <h2 id="applyConfirmTitle">Apply changes?</h2>
+        <p>This action cannot be undone.</p>
+      </div>
+      <div class="confirm-dialog-actions">
+        <button id="cancelApplyButton" class="secondary-button" type="submit" value="cancel">Cancel</button>
+        <button id="confirmApplyButton" class="danger-button" type="submit" value="confirm">Apply Changes</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="errorDialog" class="confirm-dialog error-dialog" aria-labelledby="errorDialogTitle">
+    <form method="dialog" class="confirm-dialog-panel">
+      <div>
+        <h2 id="errorDialogTitle">Something went wrong</h2>
+        <p id="errorDialogMessage"></p>
+      </div>
+      <div class="confirm-dialog-actions">
+        <button id="closeErrorDialogButton" class="secondary-button" type="submit" value="close">OK</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="./renderer.js"></script>
 </body>

@@ -3,6 +3,7 @@ const packageJson = require("../../package.json");
 
 const musicBrainzBaseUrl = "https://musicbrainz.org/ws/2";
 const coverArtArchiveBaseUrl = "https://coverartarchive.org";
+const retryableMusicBrainzStatuses = new Set([429, 502, 503, 504]);
 let lastMusicBrainzRequestAt = 0;
 
 function sleep(ms) {
@@ -15,7 +16,31 @@ function getMusicBrainzUserAgent() {
   return `${packageJson.name}/${packageJson.version} (local metadata sync app)`;
 }
 
-async function fetchMusicBrainzJson(path, searchParams = {}) {
+function getRetryAfterMs(response) {
+  const retryAfter = response.headers.get("retry-after");
+
+  if (!retryAfter) {
+    return null;
+  }
+
+  const retryAfterSeconds = Number.parseInt(retryAfter, 10);
+
+  return Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : null;
+}
+
+function getMusicBrainzRequestError(status) {
+  if (status === 503) {
+    return "MusicBrainz is temporarily unavailable. Please try again in a few minutes.";
+  }
+
+  if (status === 429) {
+    return "MusicBrainz is rate limiting requests. Please wait a moment and try again.";
+  }
+
+  return `MusicBrainz request failed with status ${status}. Please try again later.`;
+}
+
+async function fetchMusicBrainzJson(path, searchParams = {}, attempt = 1) {
   const elapsed = Date.now() - lastMusicBrainzRequestAt;
 
   if (elapsed < 1000) {
@@ -33,11 +58,19 @@ async function fetchMusicBrainzJson(path, searchParams = {}) {
     }
   });
 
-  if (!response.ok) {
-    throw new Error(`MusicBrainz request failed: ${response.status}`);
-  }
-
   lastMusicBrainzRequestAt = Date.now();
+
+  if (!response.ok) {
+    if (retryableMusicBrainzStatuses.has(response.status) && attempt < 3) {
+      const retryAfterMs = getRetryAfterMs(response);
+      const retryDelayMs = retryAfterMs ?? 1000 * attempt;
+
+      await sleep(retryDelayMs);
+      return fetchMusicBrainzJson(path, searchParams, attempt + 1);
+    }
+
+    throw new Error(getMusicBrainzRequestError(response.status));
+  }
 
   return response.json();
 }

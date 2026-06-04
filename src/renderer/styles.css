@@ -159,6 +159,66 @@ button:active:not(:disabled) {
   opacity: 0.62;
 }
 
+.confirm-dialog {
+  background: transparent;
+  border: 0;
+  margin: auto;
+  max-width: min(440px, calc(100vw - 32px));
+  padding: 0;
+  width: 100%;
+}
+
+.confirm-dialog::backdrop {
+  background: rgba(24, 32, 29, 0.44);
+}
+
+.confirm-dialog-panel {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(24, 32, 29, 0.24);
+  display: grid;
+  gap: 22px;
+  padding: 22px;
+}
+
+.confirm-dialog-panel p {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
+  margin-top: 8px;
+  white-space: pre-wrap;
+}
+
+.error-dialog .confirm-dialog-panel {
+  border-top: 4px solid #b94343;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.secondary-button {
+  background: #edf2f4;
+  color: #31465a;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: #e1e8ec;
+}
+
+.danger-button {
+  background: #b94343;
+  color: #ffffff;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #983535;
+}
+
 .toolbar {
   align-items: center;
   display: flex;
@@ -627,8 +687,13 @@ td > span {
 
   #chooseFolderButton,
   #applyButton,
-  #fetchMusicBrainzButton {
+  #fetchMusicBrainzButton,
+  .confirm-dialog-actions button {
     width: 100%;
+  }
+
+  .confirm-dialog-actions {
+    display: grid;
   }
 
   #folderLabel {
