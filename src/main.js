@@ -61,19 +61,49 @@ function createAppMenu() {
 
 ipcMain.handle("folder:choose", async () => {
   const result = await dialog.showOpenDialog({
-    title: "Choose a music folder",
-    properties: ["openDirectory"]
+    title: "Choose music folders",
+    properties: ["openDirectory", "multiSelections"]
   });
 
   if (result.canceled || result.filePaths.length === 0) {
     return null;
   }
 
-  const folderPath = result.filePaths[0];
-  const albums = await getFolderAlbums(folderPath);
+  const uniqueFolderPaths = [
+    ...new Map(
+      result.filePaths.map((folderPath) => [
+        path.resolve(folderPath).toLowerCase(),
+        path.resolve(folderPath)
+      ])
+    ).values()
+  ];
+  const folderPaths = uniqueFolderPaths.filter((folderPath) =>
+    !uniqueFolderPaths.some((possibleParentPath) => {
+      if (possibleParentPath === folderPath) {
+        return false;
+      }
+
+      const relativePath = path.relative(possibleParentPath, folderPath);
+      return relativePath &&
+        !relativePath.startsWith("..") &&
+        !path.isAbsolute(relativePath);
+    })
+  );
+  const albumsByPath = new Map();
+
+  for (const folderPath of folderPaths) {
+    const folderAlbums = await getFolderAlbums(folderPath);
+
+    for (const album of folderAlbums) {
+      albumsByPath.set(album.folderPath.toLowerCase(), album);
+    }
+  }
+
+  const albums = [...albumsByPath.values()];
 
   return {
-    folderPath,
+    folderPath: folderPaths[0],
+    folderPaths,
     albums,
     files: albums.flatMap((album) => album.files)
   };

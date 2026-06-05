@@ -40,7 +40,7 @@ function formatMetadataLabel(key) {
 
 let selectedFiles = [];
 let selectedAlbums = [];
-let selectedFolderPath = "";
+let selectedFolderPaths = [];
 let fetchedAlbum = null;
 let activeMetadataTooltip = null;
 let lastPointerPosition = null;
@@ -63,8 +63,14 @@ function setMetadataStatus(message, isError = false) {
 }
 
 function setFolderStatus(message, isError = false) {
-  folderStatus.textContent = selectedFolderPath
-    ? `Folder: ${selectedFolderPath}\n${message}`
+  const selectionLabel = selectedFolderPaths.length === 1
+    ? `Folder: ${selectedFolderPaths[0]}`
+    : selectedFolderPaths.length > 1
+      ? `Folders (${selectedFolderPaths.length}):\n${selectedFolderPaths.join("\n")}`
+      : "";
+
+  folderStatus.textContent = selectionLabel
+    ? `${selectionLabel}\n${message}`
     : message;
   folderStatus.classList.toggle("is-error", isError);
 }
@@ -257,7 +263,8 @@ function buildMusicBrainzFetchReport() {
   const lines = [
     "Album folder comparison report",
     `Generated: ${new Date().toLocaleString()}`,
-    `Root folder: ${selectedFolderPath || "unknown"}`,
+    `Root folders: ${selectedFolderPaths.length || "unknown"}`,
+    ...selectedFolderPaths.map((folderPath) => `  ${folderPath}`),
     "",
     `Albums: ${selectedAlbums.length}`,
     ""
@@ -308,7 +315,7 @@ function buildMusicBrainzFetchReport() {
 
 async function writeMusicBrainzFetchReport() {
   return window.musicMetadataSync.writeReport({
-    folderPath: selectedFolderPath,
+    folderPaths: selectedFolderPaths,
     content: buildMusicBrainzFetchReport()
   });
 }
@@ -561,7 +568,7 @@ function renderFiles(options = {}) {
   selectedFiles = selectedAlbums.flatMap((album) => album.files);
   fileCount.textContent = `${selectedFiles.length} ${selectedFiles.length === 1 ? "file" : "files"}`;
 
-  applyButton.disabled = !selectedFolderPath || selectedFiles.length === 0;
+  applyButton.disabled = selectedAlbums.length === 0 || selectedFiles.length === 0;
   fileTableBody.replaceChildren();
 
   if (selectedFiles.length === 0) {
@@ -698,7 +705,7 @@ chooseFolderButton.addEventListener("click", async () => {
     const result = await window.musicMetadataSync.chooseFolder();
 
     if (result) {
-      selectedFolderPath = result.folderPath;
+      selectedFolderPaths = result.folderPaths || [result.folderPath].filter(Boolean);
       selectedAlbums = normalizeSelectedAlbums(result, {
         defaultExpanded: false
       });
@@ -720,7 +727,7 @@ chooseFolderButton.addEventListener("click", async () => {
     await showErrorDialog(message);
   } finally {
     chooseFolderButton.disabled = false;
-    chooseFolderButton.textContent = "Choose Folder";
+    chooseFolderButton.textContent = "Choose Folders";
     setBusy(false);
   }
 });
@@ -910,21 +917,27 @@ applyButton.addEventListener("click", async () => {
   });
 
   try {
-    const isSingleAlbumSelection = selectedAlbums.length === 1;
+    const submittedAlbums = selectedAlbums.map((album) => ({
+      folderPath: album.folderPath,
+      folderName: buildFolderName(album),
+      files: album.files
+    }));
     const result = await window.musicMetadataSync.applyFolderWorkflow({
-      albums: selectedAlbums.map((album) => ({
-        folderPath: album.folderPath,
-        folderName: buildFolderName(album),
-        files: album.files
-      }))
+      albums: submittedAlbums
     });
+    const updatedPathsByOriginalPath = new Map(
+      submittedAlbums.map((album, index) => [
+        album.folderPath.toLowerCase(),
+        result.albums?.[index]?.folderPath || album.folderPath
+      ])
+    );
 
-    if (isSingleAlbumSelection && result.albums?.[0]?.folderPath) {
-      selectedFolderPath = result.albums[0].folderPath;
-    }
+    selectedFolderPaths = selectedFolderPaths.map((folderPath) =>
+      updatedPathsByOriginalPath.get(folderPath.toLowerCase()) || folderPath
+    );
 
     selectedAlbums = normalizeSelectedAlbums({
-      folderPath: selectedFolderPath,
+      folderPath: selectedFolderPaths[0] || "",
       albums: result.albums
     });
     selectedFiles = selectedAlbums.flatMap((album) => album.files);
