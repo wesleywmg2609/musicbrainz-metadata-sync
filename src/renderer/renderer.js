@@ -903,12 +903,9 @@ applyButton.addEventListener("click", async () => {
     `Applying changes to ${selectedAlbums.length} album${selectedAlbums.length === 1 ? "" : "s"}...`
   );
   const removeApplyProgressListener = window.musicMetadataSync.onApplyProgress((progress) => {
-    const action = progress.status === "skipped"
-      ? "Skipping completed"
-      : "Applying changes for";
-
     setFolderStatus(
-      `${action} ${progress.folderName} (${progress.current}/${progress.total})...`
+      `Applying changes for ${progress.folderName} ` +
+      `(${progress.current}/${progress.total})...`
     );
   });
 
@@ -933,14 +930,9 @@ applyButton.addEventListener("click", async () => {
     selectedFiles = selectedAlbums.flatMap((album) => album.files);
     fetchedAlbum = null;
     setMetadataStatus("Metadata applied.");
-    const skippedMessage = result.skippedCount > 0
-      ? ` Resumed and skipped ${result.skippedCount} completed album${result.skippedCount === 1 ? "" : "s"}.`
-      : "";
-
     setFolderStatus(
       `Applied changes to ${selectedAlbums.length} album${selectedAlbums.length === 1 ? "" : "s"} ` +
-      `and ${selectedFiles.length} audio file${selectedFiles.length === 1 ? "" : "s"}.` +
-      skippedMessage
+      `and ${selectedFiles.length} audio file${selectedFiles.length === 1 ? "" : "s"}.`
     );
     renderFiles();
   } catch (error) {

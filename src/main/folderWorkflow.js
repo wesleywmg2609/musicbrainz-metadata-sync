@@ -1,6 +1,5 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { createHash } = require("node:crypto");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { addMetadata, sortFilesByMetadata, walkAudioFiles } = require("./audio");
@@ -10,7 +9,6 @@ const execFileAsync = promisify(execFile);
 const keptAlbumFileNames = new Set(["cover.jpg", "original.jpg"]);
 const keptAlbumFileExtensions = new Set([".flac", ".mp3", ".m4a", ".wav", ".ogg"]);
 const retryableArtworkStatuses = new Set([429, 500, 502, 503, 504]);
-const applyCheckpointDirectory = path.join(process.cwd(), "logs", "apply-checkpoints");
 const folderPathCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: "base"
@@ -37,63 +35,6 @@ function getTargetFolderPath({ folderPath, folderName }) {
   return safeFolderName
     ? path.join(path.dirname(folderPath), safeFolderName)
     : folderPath;
-}
-
-function getApplyPlanSignature(albums) {
-  const plan = albums.map((album) => ({
-    targetFolderPath: getTargetFolderPath(album).toLowerCase(),
-    releaseIds: [...new Set(
-      album.files
-        .map((file) => file.fetchedMetadata?.musicbrainzReleaseId)
-        .filter(Boolean)
-    )].sort()
-  })).sort((left, right) =>
-    left.targetFolderPath.localeCompare(right.targetFolderPath)
-  );
-
-  return createHash("sha256")
-    .update(JSON.stringify(plan))
-    .digest("hex");
-}
-
-function getApplyCheckpointPath(signature) {
-  return path.join(applyCheckpointDirectory, `${signature}.json`);
-}
-
-async function readApplyCheckpoint(signature) {
-  const checkpointPath = getApplyCheckpointPath(signature);
-
-  try {
-    const checkpoint = JSON.parse(await fs.readFile(checkpointPath, "utf8"));
-
-    if (checkpoint.signature === signature && Array.isArray(checkpoint.completedFolderPaths)) {
-      return new Set(checkpoint.completedFolderPaths);
-    }
-  } catch (error) {
-    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) {
-      throw error;
-    }
-  }
-
-  return new Set();
-}
-
-async function writeApplyCheckpoint(signature, completedFolderPaths) {
-  const checkpointPath = getApplyCheckpointPath(signature);
-  const temporaryPath = `${checkpointPath}.tmp`;
-  const content = JSON.stringify({
-    signature,
-    completedFolderPaths: [...completedFolderPaths],
-    updatedAt: new Date().toISOString()
-  }, null, 2);
-
-  await fs.mkdir(applyCheckpointDirectory, { recursive: true });
-  await fs.writeFile(temporaryPath, content, "utf8");
-  await fs.rename(temporaryPath, checkpointPath);
-}
-
-async function clearApplyCheckpoint(signature) {
-  await fs.rm(getApplyCheckpointPath(signature), { force: true });
 }
 
 function buildFetchedFileName(metadata, extension) {
@@ -440,42 +381,19 @@ async function applyLibraryWorkflow({ albums = [] }, onProgress = () => {}) {
     )
   );
   const updatedAlbums = [];
-  const signature = getApplyPlanSignature(orderedAlbums);
-  const completedFolderPaths = await readApplyCheckpoint(signature);
   let movedCount = 0;
   let pendingCount = 0;
-  let skippedCount = 0;
 
   for (const [albumIndex, album] of orderedAlbums.entries()) {
     const targetFolderPath = getTargetFolderPath(album);
-    const checkpointKey = targetFolderPath.toLowerCase();
     const progress = {
       current: albumIndex + 1,
       folderName: path.basename(targetFolderPath),
+      status: "applying",
       total: orderedAlbums.length
     };
 
-    if (completedFolderPaths.has(checkpointKey) && await pathExists(targetFolderPath)) {
-      onProgress({
-        ...progress,
-        status: "skipped"
-      });
-      const files = await addMetadata(await walkAudioFiles(targetFolderPath));
-
-      sortFilesByMetadata(files);
-      updatedAlbums.push({
-        folderPath: targetFolderPath,
-        folderName: path.basename(targetFolderPath),
-        files
-      });
-      skippedCount += 1;
-      continue;
-    }
-
-    onProgress({
-      ...progress,
-      status: "applying"
-    });
+    onProgress(progress);
     const result = await applyFolderWorkflow(album);
 
     updatedAlbums.push({
@@ -486,17 +404,13 @@ async function applyLibraryWorkflow({ albums = [] }, onProgress = () => {}) {
     movedCount += result.movedCount;
 
     if (result.complete) {
-      completedFolderPaths.add(result.folderPath.toLowerCase());
-      await writeApplyCheckpoint(signature, completedFolderPaths);
-    } else {
-      pendingCount += 1;
+      continue;
     }
+
+    pendingCount += 1;
   }
 
-  if (pendingCount === 0) {
-    await clearApplyCheckpoint(signature);
-  } else {
-    await writeApplyCheckpoint(signature, completedFolderPaths);
+  if (pendingCount > 0) {
     throw new Error(
       `Applied file and metadata changes, but artwork is still pending for ` +
       `${pendingCount} album${pendingCount === 1 ? "" : "s"}. ` +
@@ -506,8 +420,7 @@ async function applyLibraryWorkflow({ albums = [] }, onProgress = () => {}) {
 
   return {
     albums: updatedAlbums,
-    movedCount,
-    skippedCount
+    movedCount
   };
 }
 
