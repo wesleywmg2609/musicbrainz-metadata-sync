@@ -55,12 +55,27 @@ async function fetchMusicBrainzJson(path, searchParams = {}, attempt = 1) {
     ...searchParams,
     fmt: "json"
   });
-  const response = await fetch(`${musicBrainzBaseUrl}${path}?${params}`, {
-    headers: {
-      "User-Agent": getMusicBrainzUserAgent(),
-      Accept: "application/json"
+  let response;
+
+  try {
+    response = await fetch(`${musicBrainzBaseUrl}${path}?${params}`, {
+      headers: {
+        "User-Agent": getMusicBrainzUserAgent(),
+        Accept: "application/json"
+      }
+    });
+  } catch (error) {
+    lastMusicBrainzRequestAt = Date.now();
+
+    if (attempt < 3) {
+      await sleep(1000 * attempt);
+      return fetchMusicBrainzJson(path, searchParams, attempt + 1);
     }
-  });
+
+    throw new Error("Could not connect to MusicBrainz after 3 attempts. Check your network connection and try again.", {
+      cause: error
+    });
+  }
 
   lastMusicBrainzRequestAt = Date.now();
 
@@ -169,19 +184,70 @@ function stripTrailingParenthetical(value) {
   return stripped || text;
 }
 
-function getAlbumSearchTexts(album) {
+function getQuotedAlbumTitles(value) {
+  const titles = [];
+  const text = String(value || "");
+  const quotePattern = /[\u300C"]([^"\u300D]+)[\u300D"]/gu;
+  let match = quotePattern.exec(text);
+
+  while (match) {
+    titles.push(match[1]);
+    match = quotePattern.exec(text);
+  }
+
+  return titles;
+}
+
+function compactStylizedLetterSpacing(value) {
+  const text = String(value || "").trim();
+
+  if (!/[\u200B-\u200D\u2060\uFEFF]/u.test(text)) {
+    return text;
+  }
+
+  return text
+    .split(/\s*[\u200B-\u200D\u2060\uFEFF]+\s*/u)
+    .map((word) => word.replace(/\s+/g, ""))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getAlbumSearchVariants(album) {
   const repairedAlbum = repairSearchText(album);
   const withoutEp = stripTrailingEpSuffix(repairedAlbum);
   const withoutParenthetical = stripTrailingParenthetical(repairedAlbum);
+  const compactTitle = compactStylizedLetterSpacing(withoutParenthetical);
+  const quotedTitles = getQuotedAlbumTitles(withoutParenthetical);
+  const variants = [
+    { text: album, isSimplified: false },
+    { text: repairedAlbum, isSimplified: false },
+    { text: withoutEp, isSimplified: withoutEp !== repairedAlbum },
+    { text: withoutParenthetical, isSimplified: withoutParenthetical !== repairedAlbum },
+    { text: compactTitle, isSimplified: compactTitle !== withoutParenthetical },
+    { text: stripTrailingParenthetical(withoutEp), isSimplified: true },
+    { text: stripTrailingEpSuffix(withoutParenthetical), isSimplified: true },
+    ...quotedTitles.slice(-1).map((text) => ({
+      text,
+      isSimplified: true
+    }))
+  ];
+  const seen = new Set();
 
-  return getUniqueSearchTexts(
-    album,
-    repairedAlbum,
-    withoutEp,
-    withoutParenthetical,
-    stripTrailingParenthetical(withoutEp),
-    stripTrailingEpSuffix(withoutParenthetical)
-  );
+  return variants
+    .map((variant) => ({
+      ...variant,
+      text: String(variant.text || "").trim()
+    }))
+    .filter((variant) => {
+      const key = normalizeSearchText(variant.text);
+
+      if (!key || seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
 }
 
 function getUniqueSearchTexts(...values) {
@@ -205,8 +271,51 @@ function getUniqueSearchTexts(...values) {
   return results;
 }
 
+function getArtistSearchTexts(artist) {
+  const repairedArtist = repairSearchText(artist);
+  const artistParts = repairedArtist
+    .split(/\s*(?:,|&|\uFF06|\/|\u3001|\uFF0C)\s*/u)
+    .filter(Boolean);
+
+  return getUniqueSearchTexts(artist, repairedArtist, ...artistParts);
+}
+
 function quoteMusicBrainzQueryValue(value) {
   return String(value || "").replace(/["\\]/g, " ");
+}
+
+function getSearchTokens(value) {
+  const ignoredTokens = new Set(["and", "cv", "feat", "featuring", "the", "x"]);
+
+  return normalizeSearchText(value)
+    .split(" ")
+    .filter((token) => token.length > 1 && !ignoredTokens.has(token));
+}
+
+function hasArtistMatch(artist, candidateArtist) {
+  const wantedArtist = normalizeSearchText(artist);
+  const normalizedCandidateArtist = normalizeSearchText(candidateArtist);
+
+  if (!wantedArtist || !normalizedCandidateArtist) {
+    return false;
+  }
+
+  if (
+    normalizedCandidateArtist.includes(wantedArtist) ||
+    wantedArtist.includes(normalizedCandidateArtist)
+  ) {
+    return true;
+  }
+
+  const wantedTokens = getSearchTokens(artist);
+
+  if (wantedTokens.length === 0) {
+    return false;
+  }
+
+  const matchedTokens = wantedTokens.filter((token) => normalizedCandidateArtist.includes(token));
+
+  return matchedTokens.length >= Math.min(2, wantedTokens.length);
 }
 
 function getArtistCreditName(artistCredit) {
@@ -277,23 +386,47 @@ function appendTags(tags, entries) {
   });
 }
 
-function scoreMusicBrainzRelease(candidate, artist, album) {
-  const wantedArtist = normalizeSearchText(artist);
-  const wantedAlbum = normalizeSearchText(album);
+function scoreMusicBrainzRelease(candidate, artist, albumVariant, localTrackCount = null) {
+  const wantedAlbum = normalizeSearchText(albumVariant.text);
   const candidateAlbum = normalizeSearchText(candidate.title);
-  const candidateArtist = normalizeSearchText(getArtistCreditName(candidate["artist-credit"]));
+  const artistMatches = hasArtistMatch(artist, getArtistCreditName(candidate["artist-credit"]));
+  const candidateTrackCount = Number.parseInt(candidate["track-count"], 10);
 
   if (!wantedAlbum || !candidateAlbum) {
     return -1;
   }
 
-  const artistMatches = wantedArtist && candidateArtist.includes(wantedArtist);
-  const albumStronglyMatches = candidateAlbum === wantedAlbum ||
-    candidateAlbum.includes(wantedAlbum) ||
-    wantedAlbum.includes(candidateAlbum);
+  const albumExactlyMatches = candidateAlbum === wantedAlbum;
+  const shorterAlbumLength = Math.min(
+    wantedAlbum.replace(/\s/g, "").length,
+    candidateAlbum.replace(/\s/g, "").length
+  );
+  const albumStronglyMatches = albumExactlyMatches ||
+    (
+      shorterAlbumLength >= 3 &&
+      (
+        candidateAlbum.includes(wantedAlbum) ||
+        wantedAlbum.includes(candidateAlbum)
+      )
+    );
 
-  if (wantedArtist && !artistMatches && !albumStronglyMatches) {
+  if (!albumStronglyMatches) {
     return -1;
+  }
+
+  if (albumVariant.isSimplified && !artistMatches) {
+    return -1;
+  }
+
+  if (!artistMatches) {
+    const trackCountMatches = Number.isFinite(localTrackCount) &&
+      localTrackCount > 0 &&
+      Number.isFinite(candidateTrackCount) &&
+      candidateTrackCount === localTrackCount;
+
+    if (!trackCountMatches || shorterAlbumLength < 12) {
+      return -1;
+    }
   }
 
   let score = Number.parseInt(candidate.score, 10) || 0;
@@ -304,17 +437,18 @@ function scoreMusicBrainzRelease(candidate, artist, album) {
     score += 70;
   } else if (wantedAlbum.includes(candidateAlbum)) {
     score += 45;
-  } else {
-    const wantedWords = wantedAlbum.split(" ").filter((word) => word.length > 2);
-    const matchedWords = wantedWords.filter((word) => candidateAlbum.includes(word));
-
-    score += matchedWords.length * 8;
   }
 
+  score += albumVariant.isSimplified ? 0 : 45;
+
   if (artistMatches) {
-    score += 45;
-  } else if (wantedArtist) {
-    score -= 35;
+    score += 70;
+  } else {
+    score -= 90;
+  }
+
+  if (Number.isFinite(localTrackCount) && localTrackCount > 0 && Number.isFinite(candidateTrackCount)) {
+    score += candidateTrackCount === localTrackCount ? 35 : -60;
   }
 
   if (candidate.status === "Official") {
@@ -324,14 +458,15 @@ function scoreMusicBrainzRelease(candidate, artist, album) {
   return score;
 }
 
-async function searchMusicBrainzReleases(artist, album) {
+async function searchMusicBrainzReleases(artist, album, options = {}) {
   const artists = getUniqueSearchTexts(artist, repairSearchText(artist));
-  const albums = getAlbumSearchTexts(album);
-  const queries = albums.flatMap((albumText) => {
-    const quotedAlbum = quoteMusicBrainzQueryValue(albumText);
+  const artistQueries = getArtistSearchTexts(artist);
+  const albumVariants = getAlbumSearchVariants(album);
+  const queries = albumVariants.flatMap((albumVariant) => {
+    const quotedAlbum = quoteMusicBrainzQueryValue(albumVariant.text);
 
     return [
-      ...artists.flatMap((artistText) => {
+      ...artistQueries.flatMap((artistText) => {
         const quotedArtist = quoteMusicBrainzQueryValue(artistText);
 
         return [
@@ -362,11 +497,13 @@ async function searchMusicBrainzReleases(artist, album) {
 
       const score = Math.max(
         ...artists.flatMap((artistText) =>
-          albums.map((albumText) => scoreMusicBrainzRelease(candidate, artistText, albumText))
+          albumVariants.map((albumVariant) =>
+            scoreMusicBrainzRelease(candidate, artistText, albumVariant, options.trackCount)
+          )
         )
       );
 
-      if (score >= 0) {
+      if (score >= 120) {
         candidates.push({
           ...candidate,
           score
@@ -514,12 +651,15 @@ function normalizeMusicBrainzTracks(release, coverArt) {
 async function fetchMusicBrainzAlbumMetadata(payload) {
   const artist = repairSearchText(payload.artist);
   const album = repairSearchText(payload.album);
+  const trackCount = Number.parseInt(payload.trackCount, 10) || null;
 
   if (!artist || !album) {
     throw new Error("Artist and album are required before fetching MusicBrainz metadata.");
   }
 
-  const musicBrainzRelease = (await searchMusicBrainzReleases(artist, album))[0];
+  const musicBrainzRelease = (await searchMusicBrainzReleases(artist, album, {
+    trackCount
+  }))[0];
 
   if (!musicBrainzRelease) {
     throw new Error(`No MusicBrainz release found for "${artist} - ${album}". Try simplifying the artist or album text.`);

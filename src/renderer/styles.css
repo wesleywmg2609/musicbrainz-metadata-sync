@@ -280,6 +280,14 @@ button:active:not(:disabled) {
   min-height: 42px;
   overflow-wrap: anywhere;
   padding: 9px 12px;
+  white-space: pre-wrap;
+}
+
+#metadataStatus.is-error {
+  background: #fff3f3;
+  border-color: #efc4c4;
+  border-left-color: #c93c3c;
+  color: #a52626;
 }
 
 .file-panel {

@@ -53,6 +53,11 @@ function getErrorMessage(error) {
     .trim();
 }
 
+function setMetadataStatus(message, isError = false) {
+  metadataStatus.textContent = message;
+  metadataStatus.classList.toggle("is-error", isError);
+}
+
 function confirmApplyChanges() {
   return new Promise((resolve) => {
     if (!applyConfirmDialog) {
@@ -688,7 +693,7 @@ chooseFolderButton.addEventListener("click", async () => {
       });
       selectedFiles = selectedAlbums.flatMap((album) => album.files);
       fetchedAlbum = null;
-      metadataStatus.textContent = "Metadata not loaded.";
+      setMetadataStatus("Metadata not loaded.");
       renderFiles();
     }
   } finally {
@@ -762,7 +767,8 @@ async function fetchAlbumMusicBrainzMetadata(album) {
 
   const payload = {
     artist: metadata?.albumArtist || metadata?.artist,
-    album: metadata?.album
+    album: metadata?.album,
+    trackCount: album.files.length
   };
 
   const albumData = await window.musicMetadataSync.fetchMusicBrainzAlbum(payload);
@@ -776,14 +782,14 @@ async function fetchMusicBrainzMetadata() {
   setBusy(true);
   fetchMusicBrainzButton.disabled = true;
   fetchMusicBrainzButton.textContent = "Fetching...";
-  metadataStatus.textContent = "Searching MusicBrainz...";
+  setMetadataStatus("Searching MusicBrainz...");
 
   try {
     const loaded = [];
     const failed = [];
 
     for (const album of selectedAlbums) {
-      metadataStatus.textContent = `Searching MusicBrainz for ${getBaseName(album.folderPath)}...`;
+      setMetadataStatus(`Searching MusicBrainz for ${getBaseName(album.folderPath)}...`);
       album.fetchError = "";
       album.fetchedAlbum = null;
       album.files = album.files.map((file) => ({
@@ -802,24 +808,36 @@ async function fetchMusicBrainzMetadata() {
     }
 
     fetchedAlbum = selectedAlbums.length === 1 ? selectedAlbums[0].fetchedAlbum : null;
-    metadataStatus.textContent = "Writing MusicBrainz fetch report...";
+    setMetadataStatus("Writing MusicBrainz fetch report...");
     const report = await writeMusicBrainzFetchReport();
-    const reportMessage = report?.reportPath
-      ? ` Report: ${report.reportPath}`
+    const reportLine = report?.reportPath
+      ? `Report: ${report.reportPath}`
       : "";
 
     if (loaded.length === 0 && failed.length > 0) {
-      throw new Error(`${failed.join("\n")}${reportMessage}`);
+      throw new Error([
+        "Failed:",
+        ...failed.map((message, index) => `${index + 1}. ${message}`),
+        reportLine
+      ].filter(Boolean).join("\n"));
     }
 
-    metadataStatus.textContent = failed.length > 0
-      ? `Loaded ${loaded.length} album metadata set${loaded.length === 1 ? "" : "s"}. Failed: ${failed.join(" | ")}.${reportMessage}`
-      : `Loaded ${loaded.length} album metadata set${loaded.length === 1 ? "" : "s"} from MusicBrainz.${reportMessage}`;
+    const loadedLine = `Loaded ${loaded.length} album metadata set${loaded.length === 1 ? "" : "s"} from MusicBrainz.`;
+    const statusLines = failed.length > 0
+      ? [
+          loadedLine,
+          "Failed:",
+          ...failed.map((message, index) => `${index + 1}. ${message}`),
+          reportLine
+        ]
+      : [loadedLine, reportLine];
+
+    setMetadataStatus(statusLines.filter(Boolean).join("\n"), failed.length > 0);
     renderFiles({ restoreActiveTooltip: true });
   } catch (error) {
     const message = getErrorMessage(error);
 
-    metadataStatus.textContent = message;
+    setMetadataStatus(message, true);
     await showErrorDialog(message);
   } finally {
     fetchMusicBrainzButton.disabled = false;
@@ -871,7 +889,7 @@ applyButton.addEventListener("click", async () => {
     });
     selectedFiles = selectedAlbums.flatMap((album) => album.files);
     fetchedAlbum = null;
-    metadataStatus.textContent = "Metadata applied.";
+    setMetadataStatus("Metadata applied.");
     renderFiles();
   } catch (error) {
     await showErrorDialog(getErrorMessage(error));

@@ -4,6 +4,21 @@ const path = require("node:path");
 const { applyLibraryWorkflow, getFolderAlbums } = require("./main/folderWorkflow");
 const { fetchMusicBrainzAlbumMetadata } = require("./main/musicbrainz");
 
+function getLogFileName(date = new Date()) {
+  const pad = (value, length = 2) => String(value).padStart(length, "0");
+
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate())
+  ].join("-") + "_" + [
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+    pad(date.getMilliseconds(), 3)
+  ].join("-") + ".txt";
+}
+
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1080,
@@ -74,8 +89,10 @@ ipcMain.handle("musicbrainz:album", async (_event, payload) => {
 
 ipcMain.handle("report:write", async (_event, payload) => {
   const content = String(payload?.content || "");
-  const reportPath = path.join(process.cwd(), "log.txt");
+  const logsPath = path.join(process.cwd(), "logs");
+  const reportPath = path.join(logsPath, getLogFileName());
 
+  await fs.mkdir(logsPath, { recursive: true });
   await fs.writeFile(reportPath, content, "utf8");
 
   return {
