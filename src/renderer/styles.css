@@ -88,7 +88,7 @@ h2 {
   padding: 26px;
 }
 
-.toolbar,
+.folder-panel,
 .metadata-panel,
 .file-panel {
   background: rgba(255, 255, 255, 0.96);
@@ -219,52 +219,14 @@ button:active:not(:disabled) {
   background: #983535;
 }
 
-.toolbar {
-  align-items: center;
-  display: flex;
-  gap: 22px;
-  justify-content: space-between;
-  padding: 24px;
-}
-
-.toolbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-#folderLabel {
-  color: var(--text-muted);
-  font-size: 13px;
-  margin-top: 7px;
-  max-width: 720px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+.folder-panel,
 .metadata-panel {
   display: grid;
   gap: 15px;
   padding: 20px;
 }
 
-.metadata-panel-header {
-  align-items: center;
-  display: flex;
-  grid-column: 1 / -1;
-  justify-content: space-between;
-}
-
-.metadata-actions {
-  align-items: start;
-  display: grid;
-  gap: 10px;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(auto-fit, minmax(150px, max-content));
-}
-
+#folderStatus,
 #metadataStatus {
   align-content: center;
   background: #f7f9fb;
@@ -273,7 +235,6 @@ button:active:not(:disabled) {
   border-radius: 7px;
   color: #51605c;
   display: grid;
-  grid-column: 1 / -1;
   font-size: 13px;
   font-weight: 650;
   line-height: 1.45;
@@ -283,6 +244,30 @@ button:active:not(:disabled) {
   white-space: pre-wrap;
 }
 
+#folderStatus {
+  grid-column: 1 / -1;
+}
+
+.panel-header {
+  align-items: center;
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+}
+
+.panel-actions {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(150px, max-content));
+}
+
+#metadataStatus {
+  grid-column: 1 / -1;
+}
+
+#folderStatus.is-error,
 #metadataStatus.is-error {
   background: #fff3f3;
   border-color: #efc4c4;
@@ -677,20 +662,14 @@ td > span {
     padding: 14px;
   }
 
-  .toolbar,
   .file-panel-header {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .toolbar-actions,
-  .metadata-actions {
+  .panel-actions {
     grid-template-columns: 1fr;
     justify-content: stretch;
-  }
-
-  .toolbar-actions {
-    display: grid;
   }
 
   #chooseFolderButton,
@@ -702,10 +681,6 @@ td > span {
 
   .confirm-dialog-actions {
     display: grid;
-  }
-
-  #folderLabel {
-    max-width: 100%;
   }
 
   .preview-table tr {

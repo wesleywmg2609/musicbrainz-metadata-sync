@@ -8,6 +8,13 @@ const packageJson = require("../../package.json");
 const execFileAsync = promisify(execFile);
 const keptAlbumFileNames = new Set(["cover.jpg", "original.jpg"]);
 const keptAlbumFileExtensions = new Set([".flac", ".mp3", ".m4a", ".wav", ".ogg"]);
+const retryableArtworkStatuses = new Set([429, 500, 502, 503, 504]);
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 function cleanFileName(name) {
   return name
@@ -114,18 +121,36 @@ function getMusicBrainzUserAgent() {
   return `${packageJson.name}/${packageJson.version} (local metadata sync app)`;
 }
 
-async function downloadFile(url, destinationPath) {
+async function downloadFile(url, destinationPath, attempt = 1) {
   if (!url) {
     return false;
   }
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": getMusicBrainzUserAgent()
+  let response;
+
+  try {
+    response = await fetch(url, {
+      headers: {
+        "User-Agent": getMusicBrainzUserAgent()
+      }
+    });
+  } catch (error) {
+    if (attempt < 3) {
+      await sleep(1000 * attempt);
+      return downloadFile(url, destinationPath, attempt + 1);
     }
-  });
+
+    throw new Error("Artwork download failed after 3 attempts.", {
+      cause: error
+    });
+  }
 
   if (!response.ok) {
+    if (retryableArtworkStatuses.has(response.status) && attempt < 3) {
+      await sleep(1000 * attempt);
+      return downloadFile(url, destinationPath, attempt + 1);
+    }
+
     throw new Error(`Artwork download failed: ${response.status}`);
   }
 
@@ -150,18 +175,27 @@ async function prepareAlbumArtwork(targetFolderPath, files) {
 
   const coverPath = path.join(targetFolderPath, "cover.jpg");
   const originalPath = path.join(targetFolderPath, "original.jpg");
+  let embedPath = "";
 
   if (coverArt.embed) {
-    await downloadFile(coverArt.embed, coverPath);
+    try {
+      await downloadFile(coverArt.embed, coverPath);
+      embedPath = coverPath;
+    } catch {
+      // The original image may still be available as an embedding fallback.
+    }
   }
 
   if (coverArt.original) {
-    await downloadFile(coverArt.original, originalPath);
+    try {
+      await downloadFile(coverArt.original, originalPath);
+      embedPath ||= originalPath;
+    } catch {
+      // Artwork is optional; metadata and file changes should still be applied.
+    }
   }
 
-  return {
-    embedPath: coverArt.embed ? coverPath : ""
-  };
+  return embedPath ? { embedPath } : null;
 }
 
 async function embedFlacArtwork(filePath, artworkPath) {

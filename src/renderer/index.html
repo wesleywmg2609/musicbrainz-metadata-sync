@@ -10,22 +10,22 @@
 
 <body>
   <main class="app-shell">
-    <section class="toolbar" aria-label="Folder controls">
-      <div>
-        <h1>MusicBrainz Metadata Sync</h1>
-        <p id="folderLabel">No folder selected</p>
+    <section class="folder-panel" aria-label="Folder controls">
+      <div class="panel-header">
+        <h2>Folder Actions</h2>
       </div>
-      <div class="toolbar-actions">
+      <div class="panel-actions">
         <button id="chooseFolderButton" type="button">Choose Folder</button>
         <button id="applyButton" type="button" disabled>Apply Changes</button>
+        <span id="folderStatus" aria-live="polite">Choose a folder to begin.</span>
       </div>
     </section>
 
     <section class="metadata-panel" aria-label="Rename metadata">
-      <div class="metadata-panel-header">
+      <div class="panel-header">
         <h2>Fetch Metadata From</h2>
       </div>
-      <div class="metadata-actions">
+      <div class="panel-actions">
         <button id="fetchMusicBrainzButton" type="button">MusicBrainz</button>
         <span id="metadataStatus">Metadata not loaded.</span>
       </div>

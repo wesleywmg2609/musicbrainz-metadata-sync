@@ -1,6 +1,6 @@
 const chooseFolderButton = document.querySelector("#chooseFolderButton");
 const applyButton = document.querySelector("#applyButton");
-const folderLabel = document.querySelector("#folderLabel");
+const folderStatus = document.querySelector("#folderStatus");
 const fetchMusicBrainzButton = document.querySelector("#fetchMusicBrainzButton");
 const metadataStatus = document.querySelector("#metadataStatus");
 const fileCount = document.querySelector("#fileCount");
@@ -56,6 +56,13 @@ function getErrorMessage(error) {
 function setMetadataStatus(message, isError = false) {
   metadataStatus.textContent = message;
   metadataStatus.classList.toggle("is-error", isError);
+}
+
+function setFolderStatus(message, isError = false) {
+  folderStatus.textContent = selectedFolderPath
+    ? `Folder: ${selectedFolderPath}\n${message}`
+    : message;
+  folderStatus.classList.toggle("is-error", isError);
 }
 
 function confirmApplyChanges() {
@@ -681,12 +688,12 @@ chooseFolderButton.addEventListener("click", async () => {
   setBusy(true);
   chooseFolderButton.disabled = true;
   chooseFolderButton.textContent = "Choosing...";
+  setFolderStatus("Waiting for folder selection...");
 
   try {
     const result = await window.musicMetadataSync.chooseFolder();
 
     if (result) {
-      folderLabel.textContent = result.folderPath;
       selectedFolderPath = result.folderPath;
       selectedAlbums = normalizeSelectedAlbums(result, {
         defaultExpanded: false
@@ -694,8 +701,19 @@ chooseFolderButton.addEventListener("click", async () => {
       selectedFiles = selectedAlbums.flatMap((album) => album.files);
       fetchedAlbum = null;
       setMetadataStatus("Metadata not loaded.");
+      setFolderStatus(
+        `Loaded ${selectedAlbums.length} album${selectedAlbums.length === 1 ? "" : "s"} with ` +
+        `${selectedFiles.length} audio file${selectedFiles.length === 1 ? "" : "s"}.`
+      );
       renderFiles();
+    } else {
+      setFolderStatus("Folder selection canceled.");
     }
+  } catch (error) {
+    const message = getErrorMessage(error);
+
+    setFolderStatus(message, true);
+    await showErrorDialog(message);
   } finally {
     chooseFolderButton.disabled = false;
     chooseFolderButton.textContent = "Choose Folder";
@@ -867,6 +885,9 @@ applyButton.addEventListener("click", async () => {
   setBusy(true);
   applyButton.disabled = true;
   applyButton.textContent = "Applying...";
+  setFolderStatus(
+    `Applying changes to ${selectedAlbums.length} album${selectedAlbums.length === 1 ? "" : "s"}...`
+  );
 
   try {
     const isSingleAlbumSelection = selectedAlbums.length === 1;
@@ -880,7 +901,6 @@ applyButton.addEventListener("click", async () => {
 
     if (isSingleAlbumSelection && result.albums?.[0]?.folderPath) {
       selectedFolderPath = result.albums[0].folderPath;
-      folderLabel.textContent = selectedFolderPath;
     }
 
     selectedAlbums = normalizeSelectedAlbums({
@@ -890,9 +910,16 @@ applyButton.addEventListener("click", async () => {
     selectedFiles = selectedAlbums.flatMap((album) => album.files);
     fetchedAlbum = null;
     setMetadataStatus("Metadata applied.");
+    setFolderStatus(
+      `Applied changes to ${selectedAlbums.length} album${selectedAlbums.length === 1 ? "" : "s"} ` +
+      `and ${selectedFiles.length} audio file${selectedFiles.length === 1 ? "" : "s"}.`
+    );
     renderFiles();
   } catch (error) {
-    await showErrorDialog(getErrorMessage(error));
+    const message = getErrorMessage(error);
+
+    setFolderStatus(message, true);
+    await showErrorDialog(message);
   } finally {
     applyButton.textContent = "Apply Changes";
     renderFiles();
