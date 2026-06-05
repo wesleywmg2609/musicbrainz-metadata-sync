@@ -11,6 +11,10 @@ const keptAlbumFileNames = new Set(["cover.jpg", "original.jpg"]);
 const keptAlbumFileExtensions = new Set([".flac", ".mp3", ".m4a", ".wav", ".ogg"]);
 const retryableArtworkStatuses = new Set([429, 500, 502, 503, 504]);
 const applyCheckpointDirectory = path.join(process.cwd(), "logs", "apply-checkpoints");
+const folderPathCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base"
+});
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -429,20 +433,26 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
 }
 
 async function applyLibraryWorkflow({ albums = [] }, onProgress = () => {}) {
+  const orderedAlbums = [...albums].sort((left, right) =>
+    folderPathCollator.compare(
+      String(left.folderPath || ""),
+      String(right.folderPath || "")
+    )
+  );
   const updatedAlbums = [];
-  const signature = getApplyPlanSignature(albums);
+  const signature = getApplyPlanSignature(orderedAlbums);
   const completedFolderPaths = await readApplyCheckpoint(signature);
   let movedCount = 0;
   let pendingCount = 0;
   let skippedCount = 0;
 
-  for (const [albumIndex, album] of albums.entries()) {
+  for (const [albumIndex, album] of orderedAlbums.entries()) {
     const targetFolderPath = getTargetFolderPath(album);
     const checkpointKey = targetFolderPath.toLowerCase();
     const progress = {
       current: albumIndex + 1,
       folderName: path.basename(targetFolderPath),
-      total: albums.length
+      total: orderedAlbums.length
     };
 
     if (completedFolderPaths.has(checkpointKey) && await pathExists(targetFolderPath)) {
@@ -590,7 +600,9 @@ async function getFolderAlbums(folderPath) {
     sortFilesByMetadata(album.files);
   });
 
-  albums.sort((a, b) => a.folderPath.localeCompare(b.folderPath));
+  albums.sort((left, right) =>
+    folderPathCollator.compare(left.folderPath, right.folderPath)
+  );
 
   return albums;
 }

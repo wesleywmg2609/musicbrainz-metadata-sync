@@ -10,6 +10,10 @@ const cancelApplyButton = document.querySelector("#cancelApplyButton");
 const errorDialog = document.querySelector("#errorDialog");
 const errorDialogMessage = document.querySelector("#errorDialogMessage");
 const closeErrorDialogButton = document.querySelector("#closeErrorDialogButton");
+const folderPathCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base"
+});
 
 const metadataLabelOverrides = new Map(
   [
@@ -749,13 +753,20 @@ function normalizeSelectedAlbums(result, options = {}) {
       files: result.files || []
     }];
 
-  return albums.map((album) => ({
-    ...album,
-    folderName: album.folderName || getBaseName(album.folderPath),
-    expanded: album.expanded ?? defaultExpanded,
-    fetchedAlbum: album.fetchedAlbum || null,
-    files: album.files || []
-  }));
+  return albums
+    .map((album) => ({
+      ...album,
+      folderName: album.folderName || getBaseName(album.folderPath),
+      expanded: album.expanded ?? defaultExpanded,
+      fetchedAlbum: album.fetchedAlbum || null,
+      files: album.files || []
+    }))
+    .sort((left, right) =>
+      folderPathCollator.compare(
+        String(left.folderPath || ""),
+        String(right.folderPath || "")
+      )
+    );
 }
 
 function applyFetchedMetadata(album, albumData) {
@@ -806,8 +817,11 @@ async function fetchMusicBrainzMetadata() {
     const loaded = [];
     const failed = [];
 
-    for (const album of selectedAlbums) {
-      setMetadataStatus(`Searching MusicBrainz for ${getBaseName(album.folderPath)}...`);
+    for (const [albumIndex, album] of selectedAlbums.entries()) {
+      setMetadataStatus(
+        `Searching MusicBrainz for ${getBaseName(album.folderPath)} ` +
+        `(${albumIndex + 1}/${selectedAlbums.length})...`
+      );
       album.fetchError = "";
       album.fetchedAlbum = null;
       album.files = album.files.map((file) => ({
