@@ -79,8 +79,10 @@ ipcMain.handle("folder:choose", async () => {
   };
 });
 
-ipcMain.handle("folder:apply", async (_event, payload) => {
-  return applyLibraryWorkflow(payload);
+ipcMain.handle("folder:apply", async (event, payload) => {
+  return applyLibraryWorkflow(payload, (progress) => {
+    event.sender.send("folder:apply-progress", progress);
+  });
 });
 
 ipcMain.handle("musicbrainz:album", async (_event, payload) => {

@@ -1,5 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { createHash } = require("node:crypto");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { addMetadata, sortFilesByMetadata, walkAudioFiles } = require("./audio");
@@ -9,6 +10,7 @@ const execFileAsync = promisify(execFile);
 const keptAlbumFileNames = new Set(["cover.jpg", "original.jpg"]);
 const keptAlbumFileExtensions = new Set([".flac", ".mp3", ".m4a", ".wav", ".ogg"]);
 const retryableArtworkStatuses = new Set([429, 500, 502, 503, 504]);
+const applyCheckpointDirectory = path.join(process.cwd(), "logs", "apply-checkpoints");
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -23,6 +25,71 @@ function cleanFileName(name) {
     .replace(/\p{C}/gu, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function getTargetFolderPath({ folderPath, folderName }) {
+  const safeFolderName = cleanFileName(folderName || "");
+
+  return safeFolderName
+    ? path.join(path.dirname(folderPath), safeFolderName)
+    : folderPath;
+}
+
+function getApplyPlanSignature(albums) {
+  const plan = albums.map((album) => ({
+    targetFolderPath: getTargetFolderPath(album).toLowerCase(),
+    releaseIds: [...new Set(
+      album.files
+        .map((file) => file.fetchedMetadata?.musicbrainzReleaseId)
+        .filter(Boolean)
+    )].sort()
+  })).sort((left, right) =>
+    left.targetFolderPath.localeCompare(right.targetFolderPath)
+  );
+
+  return createHash("sha256")
+    .update(JSON.stringify(plan))
+    .digest("hex");
+}
+
+function getApplyCheckpointPath(signature) {
+  return path.join(applyCheckpointDirectory, `${signature}.json`);
+}
+
+async function readApplyCheckpoint(signature) {
+  const checkpointPath = getApplyCheckpointPath(signature);
+
+  try {
+    const checkpoint = JSON.parse(await fs.readFile(checkpointPath, "utf8"));
+
+    if (checkpoint.signature === signature && Array.isArray(checkpoint.completedFolderPaths)) {
+      return new Set(checkpoint.completedFolderPaths);
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) {
+      throw error;
+    }
+  }
+
+  return new Set();
+}
+
+async function writeApplyCheckpoint(signature, completedFolderPaths) {
+  const checkpointPath = getApplyCheckpointPath(signature);
+  const temporaryPath = `${checkpointPath}.tmp`;
+  const content = JSON.stringify({
+    signature,
+    completedFolderPaths: [...completedFolderPaths],
+    updatedAt: new Date().toISOString()
+  }, null, 2);
+
+  await fs.mkdir(applyCheckpointDirectory, { recursive: true });
+  await fs.writeFile(temporaryPath, content, "utf8");
+  await fs.rename(temporaryPath, checkpointPath);
+}
+
+async function clearApplyCheckpoint(signature) {
+  await fs.rm(getApplyCheckpointPath(signature), { force: true });
 }
 
 function buildFetchedFileName(metadata, extension) {
@@ -170,16 +237,22 @@ async function prepareAlbumArtwork(targetFolderPath, files) {
   const coverArt = getAlbumCoverArt(files);
 
   if (!coverArt?.embed && !coverArt?.original) {
-    return null;
+    return {
+      complete: true,
+      embedPath: ""
+    };
   }
 
   const coverPath = path.join(targetFolderPath, "cover.jpg");
   const originalPath = path.join(targetFolderPath, "original.jpg");
+  let embedDownloaded = !coverArt.embed;
+  let originalDownloaded = !coverArt.original;
   let embedPath = "";
 
   if (coverArt.embed) {
     try {
       await downloadFile(coverArt.embed, coverPath);
+      embedDownloaded = true;
       embedPath = coverPath;
     } catch {
       // The original image may still be available as an embedding fallback.
@@ -189,13 +262,17 @@ async function prepareAlbumArtwork(targetFolderPath, files) {
   if (coverArt.original) {
     try {
       await downloadFile(coverArt.original, originalPath);
+      originalDownloaded = true;
       embedPath ||= originalPath;
     } catch {
       // Artwork is optional; metadata and file changes should still be applied.
     }
   }
 
-  return embedPath ? { embedPath } : null;
+  return {
+    complete: embedDownloaded && originalDownloaded,
+    embedPath
+  };
 }
 
 async function embedFlacArtwork(filePath, artworkPath) {
@@ -269,17 +346,14 @@ async function writeFlacMetadata(filePath, metadata, artworkPath = "") {
 }
 
 async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
-  let targetFolderPath = folderPath;
-  const safeFolderName = cleanFileName(folderName || "");
+  let targetFolderPath = getTargetFolderPath({ folderPath, folderName });
 
-  if (safeFolderName) {
-    targetFolderPath = path.join(path.dirname(folderPath), safeFolderName);
-
-    if (targetFolderPath.toLowerCase() !== folderPath.toLowerCase()) {
-      if (await pathExists(targetFolderPath)) {
+  if (targetFolderPath.toLowerCase() !== folderPath.toLowerCase()) {
+    if (await pathExists(targetFolderPath)) {
+      if (await pathExists(folderPath)) {
         throw new Error(`Target folder already exists: ${targetFolderPath}`);
       }
-
+    } else {
       await renamePath(folderPath, targetFolderPath, "folder");
     }
   }
@@ -308,23 +382,30 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
       continue;
     }
 
-    const currentPath = path.join(
+    const originalPath = path.join(
       targetFolderPath,
       path.basename(file.path)
     );
-
-    await writeFlacMetadata(currentPath, file.fetchedMetadata, albumArtwork?.embedPath);
-
     const newFileName = buildFetchedFileName(
       file.fetchedMetadata,
-      path.extname(currentPath)
+      path.extname(originalPath)
     );
+    const destinationPath = newFileName
+      ? path.join(targetFolderPath, newFileName)
+      : originalPath;
+    const currentPath = await pathExists(originalPath)
+      ? originalPath
+      : destinationPath;
+
+    if (!await pathExists(currentPath)) {
+      throw new Error(`Audio file not found while resuming apply: ${originalPath}`);
+    }
+
+    await writeFlacMetadata(currentPath, file.fetchedMetadata, albumArtwork?.embedPath);
 
     if (!newFileName) {
       continue;
     }
-
-    const destinationPath = path.join(targetFolderPath, newFileName);
 
     if (destinationPath.toLowerCase() !== currentPath.toLowerCase()) {
       await renamePath(currentPath, destinationPath, "file");
@@ -340,17 +421,51 @@ async function applyFolderWorkflow({ folderPath, folderName, files = [] }) {
   sortFilesByMetadata(updatedFiles);
 
   return {
+    complete: albumArtwork.complete,
     folderPath: targetFolderPath,
     files: updatedFiles,
     movedCount
   };
 }
 
-async function applyLibraryWorkflow({ albums = [] }) {
+async function applyLibraryWorkflow({ albums = [] }, onProgress = () => {}) {
   const updatedAlbums = [];
+  const signature = getApplyPlanSignature(albums);
+  const completedFolderPaths = await readApplyCheckpoint(signature);
   let movedCount = 0;
+  let pendingCount = 0;
+  let skippedCount = 0;
 
-  for (const album of albums) {
+  for (const [albumIndex, album] of albums.entries()) {
+    const targetFolderPath = getTargetFolderPath(album);
+    const checkpointKey = targetFolderPath.toLowerCase();
+    const progress = {
+      current: albumIndex + 1,
+      folderName: path.basename(targetFolderPath),
+      total: albums.length
+    };
+
+    if (completedFolderPaths.has(checkpointKey) && await pathExists(targetFolderPath)) {
+      onProgress({
+        ...progress,
+        status: "skipped"
+      });
+      const files = await addMetadata(await walkAudioFiles(targetFolderPath));
+
+      sortFilesByMetadata(files);
+      updatedAlbums.push({
+        folderPath: targetFolderPath,
+        folderName: path.basename(targetFolderPath),
+        files
+      });
+      skippedCount += 1;
+      continue;
+    }
+
+    onProgress({
+      ...progress,
+      status: "applying"
+    });
     const result = await applyFolderWorkflow(album);
 
     updatedAlbums.push({
@@ -359,11 +474,30 @@ async function applyLibraryWorkflow({ albums = [] }) {
       files: result.files
     });
     movedCount += result.movedCount;
+
+    if (result.complete) {
+      completedFolderPaths.add(result.folderPath.toLowerCase());
+      await writeApplyCheckpoint(signature, completedFolderPaths);
+    } else {
+      pendingCount += 1;
+    }
+  }
+
+  if (pendingCount === 0) {
+    await clearApplyCheckpoint(signature);
+  } else {
+    await writeApplyCheckpoint(signature, completedFolderPaths);
+    throw new Error(
+      `Applied file and metadata changes, but artwork is still pending for ` +
+      `${pendingCount} album${pendingCount === 1 ? "" : "s"}. ` +
+      `Click Apply Changes again to retry the pending artwork.`
+    );
   }
 
   return {
     albums: updatedAlbums,
-    movedCount
+    movedCount,
+    skippedCount
   };
 }
 
