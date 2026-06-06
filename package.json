@@ -5,10 +5,35 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electronmon ."
+    "dev": "electronmon .",
+    "build:win": "electron-builder --win nsis",
+    "build:portable": "electron-builder --win portable"
   },
   "devDependencies": {
     "electron": "^42.0.1",
+    "electron-builder": "^26.0.12",
     "electronmon": "^2.0.4"
+  },
+  "build": {
+    "appId": "com.musicbrainzmetadatasync.app",
+    "productName": "MusicBrainz Metadata Sync",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

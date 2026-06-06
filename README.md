@@ -46,6 +46,28 @@ For development with auto-restart:
 npm.cmd run dev
 ```
 
+## Build Windows Installer
+
+Create the Windows installer:
+
+```powershell
+npm.cmd run build:win
+```
+
+The installer is written to `dist/`. Installed copies still require `ffprobe`
+and `metaflac` to be available on the system `PATH`.
+
+## Build Portable Windows App
+
+Create a portable executable that runs without installation:
+
+```powershell
+npm.cmd run build:portable
+```
+
+The portable executable is written to `dist/`. It still requires `ffprobe`
+and `metaflac` to be available on the system `PATH`.
+
 ## Workflow
 
 1. Start the app.
