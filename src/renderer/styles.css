@@ -432,6 +432,39 @@ tbody tr:hover {
   color: #31465a;
 }
 
+.album-artist-control {
+  align-items: center;
+  border-top: 1px solid rgba(49, 70, 90, 0.12);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: max-content minmax(180px, 360px);
+  padding: 9px 16px 11px 43px;
+}
+
+.album-group-row .album-artist-control span {
+  color: #51605c;
+  font-size: 11px;
+  margin: 0;
+}
+
+.album-artist-control select {
+  background: #ffffff;
+  border: 1px solid #b8c5cf;
+  border-radius: 5px;
+  color: #243648;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  min-width: 0;
+  padding: 6px 28px 6px 8px;
+  text-transform: none;
+}
+
+.album-artist-control select:focus {
+  border-color: var(--blue);
+  outline: 2px solid rgba(47, 99, 163, 0.18);
+}
+
 .file-name-old {
   color: #c84f4f;
 }

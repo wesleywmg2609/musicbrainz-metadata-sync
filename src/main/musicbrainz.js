@@ -177,6 +177,13 @@ function stripTrailingEpSuffix(value) {
     .trim();
 }
 
+function stripTrailingReleaseTypeSuffix(value) {
+  return String(value || "")
+    .replace(/\s+-\s*(?:album|ep|single)$/iu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function stripTrailingParenthetical(value) {
   const text = String(value || "").trim();
   const stripped = text.replace(/\s*[\(\uFF08][^\)\uFF09]+[\)\uFF09]\s*$/u, "").trim();
@@ -214,13 +221,17 @@ function compactStylizedLetterSpacing(value) {
 
 function getAlbumSearchVariants(album) {
   const repairedAlbum = repairSearchText(album);
-  const withoutEp = stripTrailingEpSuffix(repairedAlbum);
+  const withoutReleaseType = stripTrailingReleaseTypeSuffix(repairedAlbum);
+  const withoutEp = stripTrailingEpSuffix(withoutReleaseType);
   const withoutParenthetical = stripTrailingParenthetical(repairedAlbum);
+  const withoutReleaseDetails = stripTrailingParenthetical(withoutReleaseType);
   const compactTitle = compactStylizedLetterSpacing(withoutParenthetical);
   const quotedTitles = getQuotedAlbumTitles(withoutParenthetical);
   const variants = [
     { text: album, isSimplified: false },
     { text: repairedAlbum, isSimplified: false },
+    { text: withoutReleaseType, isSimplified: withoutReleaseType !== repairedAlbum },
+    { text: withoutReleaseDetails, isSimplified: withoutReleaseDetails !== repairedAlbum },
     { text: withoutEp, isSimplified: withoutEp !== repairedAlbum },
     { text: withoutParenthetical, isSimplified: withoutParenthetical !== repairedAlbum },
     { text: compactTitle, isSimplified: compactTitle !== withoutParenthetical },
@@ -330,6 +341,57 @@ function getArtistCreditIds(artistCredit) {
     : [];
 }
 
+function getArtistNameOptions(artistCredit, artistDetails) {
+  if (!Array.isArray(artistCredit) || artistCredit.length !== 1) {
+    return [];
+  }
+
+  const credit = artistCredit[0];
+  const options = [
+    {
+      name: credit.name,
+      locale: "",
+      source: "release credit"
+    },
+    {
+      name: artistDetails?.name || credit.artist?.name,
+      locale: "",
+      source: "canonical"
+    },
+    ...(Array.isArray(artistDetails?.aliases) ? artistDetails.aliases : []).map((alias) => ({
+      name: alias.name,
+      locale: alias.locale || "",
+      source: "alias"
+    }))
+  ];
+  const seen = new Set();
+
+  return options.filter((option) => {
+    const key = normalizeSearchText(option.name);
+
+    if (!key || seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+async function fetchArtistDetails(artistId) {
+  if (!artistId) {
+    return null;
+  }
+
+  try {
+    return await fetchMusicBrainzJson(`/artist/${artistId}`, {
+      inc: "aliases"
+    });
+  } catch {
+    return null;
+  }
+}
+
 function getGenreNames(...sources) {
   const names = sources.flatMap((source) =>
     (Array.isArray(source?.genres) ? source.genres : [])
@@ -391,6 +453,10 @@ function scoreMusicBrainzRelease(candidate, artist, albumVariant, localTrackCoun
   const candidateAlbum = normalizeSearchText(candidate.title);
   const artistMatches = hasArtistMatch(artist, getArtistCreditName(candidate["artist-credit"]));
   const candidateTrackCount = Number.parseInt(candidate["track-count"], 10);
+  const trackCountMatches = Number.isFinite(localTrackCount) &&
+    localTrackCount > 0 &&
+    Number.isFinite(candidateTrackCount) &&
+    candidateTrackCount === localTrackCount;
 
   if (!wantedAlbum || !candidateAlbum) {
     return -1;
@@ -414,22 +480,20 @@ function scoreMusicBrainzRelease(candidate, artist, albumVariant, localTrackCoun
     return -1;
   }
 
-  if (albumVariant.isSimplified && !artistMatches) {
-    return -1;
-  }
+  let score = Number.parseInt(candidate.score, 10) || 0;
 
   if (!artistMatches) {
-    const trackCountMatches = Number.isFinite(localTrackCount) &&
-      localTrackCount > 0 &&
-      Number.isFinite(candidateTrackCount) &&
-      candidateTrackCount === localTrackCount;
+    const exactTitleIsDistinctive = albumExactlyMatches &&
+      wantedAlbum.replace(/\s/g, "").length >= 8;
 
-    if (!trackCountMatches || shorterAlbumLength < 12) {
+    if (!trackCountMatches || (!exactTitleIsDistinctive && shorterAlbumLength < 12)) {
       return -1;
     }
-  }
 
-  let score = Number.parseInt(candidate.score, 10) || 0;
+    if (exactTitleIsDistinctive) {
+      score += 25;
+    }
+  }
 
   if (candidateAlbum === wantedAlbum) {
     score += 100;
@@ -462,23 +526,28 @@ async function searchMusicBrainzReleases(artist, album, options = {}) {
   const artists = getUniqueSearchTexts(artist, repairSearchText(artist));
   const artistQueries = getArtistSearchTexts(artist);
   const albumVariants = getAlbumSearchVariants(album);
-  const queries = albumVariants.flatMap((albumVariant) => {
+  const titleQueries = albumVariants.flatMap((albumVariant) => {
     const quotedAlbum = quoteMusicBrainzQueryValue(albumVariant.text);
 
     return [
-      ...artistQueries.flatMap((artistText) => {
-        const quotedArtist = quoteMusicBrainzQueryValue(artistText);
-
-        return [
-          `artist:"${quotedArtist}" AND release:"${quotedAlbum}"`,
-          `"${quotedArtist}" "${quotedAlbum}"`,
-          `${quotedArtist} ${quotedAlbum}`
-        ];
-      }),
       `release:"${quotedAlbum}"`,
       `"${quotedAlbum}"`
     ];
   });
+  const combinedQueries = albumVariants.flatMap((albumVariant) => {
+    const quotedAlbum = quoteMusicBrainzQueryValue(albumVariant.text);
+
+    return artistQueries.flatMap((artistText) => {
+      const quotedArtist = quoteMusicBrainzQueryValue(artistText);
+
+      return [
+        `artist:"${quotedArtist}" AND release:"${quotedAlbum}"`,
+        `"${quotedArtist}" "${quotedAlbum}"`,
+        `${quotedArtist} ${quotedAlbum}`
+      ];
+    });
+  });
+  const queries = [...titleQueries, ...combinedQueries];
   const seen = new Set();
   const candidates = [];
 
@@ -668,6 +737,9 @@ async function fetchMusicBrainzAlbumMetadata(payload) {
   const releaseData = await fetchMusicBrainzJson(`/release/${musicBrainzRelease.id}`, {
     inc: "recordings+artist-credits+release-groups+labels+isrcs+genres"
   });
+  const albumArtistIds = getArtistCreditIds(releaseData["artist-credit"]);
+  const albumArtistId = albumArtistIds.length === 1 ? albumArtistIds[0] : "";
+  const artistDetails = await fetchArtistDetails(albumArtistId);
   const coverArt = await fetchReleaseCoverArt(releaseData.id);
   const tracks = normalizeMusicBrainzTracks(releaseData, coverArt);
 
@@ -683,6 +755,8 @@ async function fetchMusicBrainzAlbumMetadata(payload) {
   return {
     album: releaseData.title || "",
     albumArtist: getArtistCreditName(releaseData["artist-credit"]),
+    albumArtistId,
+    albumArtistOptions: getArtistNameOptions(releaseData["artist-credit"], artistDetails),
     musicbrainzUrl: `https://musicbrainz.org/release/${releaseData.id}`,
     coverArt,
     tracks

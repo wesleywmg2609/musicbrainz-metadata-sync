@@ -592,6 +592,7 @@ function renderFiles(options = {}) {
     const folderNames = document.createElement("span");
     const oldFolderName = document.createElement("span");
     const newFolderName = document.createElement("span");
+    const artistOptions = album.fetchedAlbum?.albumArtistOptions || [];
     const isExpanded = album.expanded !== false;
     const currentFolderName = getBaseName(album.folderPath);
     const targetFolderName = buildFolderName(album) || currentFolderName;
@@ -626,6 +627,40 @@ function renderFiles(options = {}) {
       renderFiles();
     });
     albumCell.append(toggleButton);
+
+    if (artistOptions.length > 1) {
+      const artistControl = document.createElement("label");
+      const artistLabel = document.createElement("span");
+      const artistSelect = document.createElement("select");
+
+      artistControl.className = "album-artist-control";
+      artistLabel.textContent = "Artist name";
+      artistSelect.setAttribute("aria-label", `Artist name for ${album.fetchedAlbum.album}`);
+
+      artistOptions.forEach((option) => {
+        const optionElement = document.createElement("option");
+        const details = [option.locale, option.source].filter(Boolean).join(", ");
+
+        optionElement.value = option.name;
+        optionElement.textContent = details
+          ? `${option.name} (${details})`
+          : option.name;
+        artistSelect.append(optionElement);
+      });
+
+      artistSelect.value = album.fetchedAlbum.selectedAlbumArtist ||
+        album.fetchedAlbum.albumArtist;
+      artistSelect.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+      artistSelect.addEventListener("change", () => {
+        applyAlbumArtistSelection(album, artistSelect.value);
+        renderFiles();
+      });
+      artistControl.append(artistLabel, artistSelect);
+      albumCell.append(artistControl);
+    }
+
     albumRow.append(albumCell);
     fileTableBody.append(albumRow);
 
@@ -795,6 +830,49 @@ function applyFetchedMetadata(album, albumData) {
       ...file,
       fetchedMetadata: matchingTrack
     };
+  });
+}
+
+function isOnlyArtistId(value, artistId) {
+  const values = (Array.isArray(value) ? value : [value]).filter(Boolean);
+
+  return Boolean(artistId) && values.length === 1 && values[0] === artistId;
+}
+
+function applyAlbumArtistSelection(album, artistName) {
+  const albumData = album.fetchedAlbum;
+
+  if (!albumData || !artistName) {
+    return;
+  }
+
+  const updatedTracks = albumData.tracks.map((track) => {
+    const flacTags = {
+      ...(track.flacTags || {}),
+      ALBUMARTIST: artistName
+    };
+    const usesAlbumArtist = isOnlyArtistId(
+      flacTags.MUSICBRAINZ_ARTISTID,
+      albumData.albumArtistId
+    );
+
+    if (usesAlbumArtist) {
+      flacTags.ARTIST = artistName;
+    }
+
+    return {
+      ...track,
+      artist: usesAlbumArtist ? artistName : track.artist,
+      albumArtist: artistName,
+      flacTags
+    };
+  });
+
+  applyFetchedMetadata(album, {
+    ...albumData,
+    albumArtist: artistName,
+    selectedAlbumArtist: artistName,
+    tracks: updatedTracks
   });
 }
 
