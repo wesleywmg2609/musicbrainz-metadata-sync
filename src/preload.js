@@ -10,5 +10,6 @@ contextBridge.exposeInMainWorld("musicMetadataSync", {
     return () => ipcRenderer.removeListener("folder:apply-progress", listener);
   },
   fetchMusicBrainzAlbum: (payload) => ipcRenderer.invoke("musicbrainz:album", payload),
+  readEmbeddedArtwork: (filePath) => ipcRenderer.invoke("audio:artwork", filePath),
   writeReport: (payload) => ipcRenderer.invoke("report:write", payload)
 });

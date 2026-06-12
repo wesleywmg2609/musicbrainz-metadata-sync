@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { readEmbeddedArtwork } = require("./main/audio");
 const { applyLibraryWorkflow, getFolderAlbums } = require("./main/folderWorkflow");
 const { fetchMusicBrainzAlbumMetadata } = require("./main/musicbrainz");
 
@@ -117,6 +118,10 @@ ipcMain.handle("folder:apply", async (event, payload) => {
 
 ipcMain.handle("musicbrainz:album", async (_event, payload) => {
   return fetchMusicBrainzAlbumMetadata(payload);
+});
+
+ipcMain.handle("audio:artwork", async (_event, filePath) => {
+  return readEmbeddedArtwork(String(filePath || ""));
 });
 
 ipcMain.handle("report:write", async (_event, payload) => {

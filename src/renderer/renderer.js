@@ -3,7 +3,7 @@ const applyButton = document.querySelector("#applyButton");
 const folderStatus = document.querySelector("#folderStatus");
 const fetchMusicBrainzButton = document.querySelector("#fetchMusicBrainzButton");
 const metadataStatus = document.querySelector("#metadataStatus");
-const fileCount = document.querySelector("#fileCount");
+const albumCount = document.querySelector("#albumCount");
 const fileTableBody = document.querySelector("#fileTableBody");
 const fileTableWrap = fileTableBody.closest(".table-wrap");
 const trackDetailsFileName = document.querySelector("#trackDetailsFileName");
@@ -23,6 +23,7 @@ const folderPathCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: "base"
 });
+const embeddedArtworkCache = new Map();
 
 const metadataLabelOverrides = new Map(
   [
@@ -53,6 +54,7 @@ let selectedFolderPaths = [];
 let fetchedAlbum = null;
 let busyCount = 0;
 let editingAlbum = null;
+let editingTrackIndex = -1;
 let selectedTrackPath = "";
 
 function setBusy(isBusy) {
@@ -132,14 +134,35 @@ function createAlbumEditField(labelText, control) {
   return field;
 }
 
-function openAlbumEditDialog(album) {
-  const albumData = album.fetchedAlbum;
+function getAlbumTrackIndex(album, file) {
+  const tracks = album?.fetchedAlbum?.tracks || [];
+  const directIndex = tracks.indexOf(file?.fetchedMetadata);
 
-  if (!albumEditDialog || !albumEditFields || !albumData) {
+  if (directIndex >= 0) {
+    return directIndex;
+  }
+
+  const metadataKey = getLocalMetadataKey(file);
+  const keyedIndex = tracks.findIndex((track) => getFetchedMetadataKey(track) === metadataKey);
+
+  if (keyedIndex >= 0) {
+    return keyedIndex;
+  }
+
+  return album?.files?.findIndex((albumFile) => albumFile.path === file?.path) ?? -1;
+}
+
+function openAlbumEditDialog(album, file) {
+  const albumData = album.fetchedAlbum;
+  const trackIndex = getAlbumTrackIndex(album, file);
+  const track = albumData?.tracks?.[trackIndex];
+
+  if (!albumEditDialog || !albumEditFields || !albumData || !track) {
     return;
   }
 
   editingAlbum = album;
+  editingTrackIndex = trackIndex;
   albumEditDialogDescription.textContent = getBaseName(album.folderPath);
   albumEditFields.replaceChildren();
 
@@ -184,31 +207,57 @@ function openAlbumEditDialog(album) {
   albumTitleInput.required = true;
 
   const albumSection = document.createElement("div");
+  const albumHeading = document.createElement("h3");
+
   albumSection.className = "album-edit-section";
+  albumHeading.className = "album-edit-preview";
   albumSection.append(
+    albumHeading,
     createAlbumEditField("Album artist", artistControl),
     createAlbumEditField("Album title", albumTitleInput)
   );
 
-  const tracksSection = document.createElement("div");
-  const tracksHeading = document.createElement("h3");
+  const trackSection = document.createElement("div");
+  const trackHeading = document.createElement("h3");
+  const trackTitleInput = document.createElement("input");
+  const trackArtistInput = document.createElement("input");
 
-  tracksSection.className = "album-edit-section album-edit-tracks";
-  tracksHeading.textContent = `Track titles (${albumData.tracks.length})`;
-  tracksSection.append(tracksHeading);
+  trackSection.className = "album-edit-section album-edit-track";
+  trackHeading.className = "album-edit-preview";
+  trackHeading.textContent = `Track ${track.track || trackIndex + 1}`;
+  trackTitleInput.type = "text";
+  trackTitleInput.name = "trackTitle";
+  trackTitleInput.value = track.title || "";
+  trackTitleInput.required = true;
+  trackArtistInput.type = "text";
+  trackArtistInput.name = "trackArtist";
+  trackArtistInput.value = track.artist || "";
+  trackArtistInput.required = true;
 
-  albumData.tracks.forEach((track, index) => {
-    const trackTitleInput = document.createElement("input");
-    const trackNumber = track.track || index + 1;
+  const updatePreviews = () => {
+    const albumArtist = artistControl.value.trim();
+    const albumTitle = albumTitleInput.value.trim();
+    const trackTitle = trackTitleInput.value.trim();
+    const trackNumber = track.track || trackIndex + 1;
 
-    trackTitleInput.type = "text";
-    trackTitleInput.name = "trackTitle";
-    trackTitleInput.value = track.title || "";
-    trackTitleInput.required = true;
-    tracksSection.append(createAlbumEditField(`Track ${trackNumber}`, trackTitleInput));
-  });
+    albumHeading.textContent = [albumArtist, albumTitle].filter(Boolean).join(" - ") || "Album";
+    trackHeading.textContent = trackTitle
+      ? `${trackNumber}. ${trackTitle}`
+      : `Track ${trackNumber}`;
+  };
 
-  albumEditFields.append(albumSection, tracksSection);
+  artistControl.addEventListener("input", updatePreviews);
+  artistControl.addEventListener("change", updatePreviews);
+  albumTitleInput.addEventListener("input", updatePreviews);
+  trackTitleInput.addEventListener("input", updatePreviews);
+  trackSection.append(
+    trackHeading,
+    createAlbumEditField("Track title", trackTitleInput),
+    createAlbumEditField("Track artist", trackArtistInput)
+  );
+
+  albumEditFields.append(albumSection, trackSection);
+  updatePreviews();
   albumEditDialog.returnValue = "cancel";
   albumEditDialog.showModal();
   cancelAlbumEditButton?.focus();
@@ -292,6 +341,17 @@ function buildPreviewName(file) {
   }
 
   return `${track}. ${title}${extension}`;
+}
+
+function buildTrackDisplayName(metadata = {}) {
+  const track = String(metadata.track || metadata.trackNumber || "").trim();
+  const title = String(metadata.title || "").trim();
+
+  if (track && title) {
+    return `${track}. ${title}`;
+  }
+
+  return title || (track ? `Track ${track}` : "Unknown track");
 }
 
 function getAlbumMetadata(album) {
@@ -503,9 +563,21 @@ function isKeyMetadataTag(key) {
   return keyMetadataTags.has(normalizeMetadataKey(key));
 }
 
+function getEmbeddedArtwork(filePath) {
+  if (!embeddedArtworkCache.has(filePath)) {
+    embeddedArtworkCache.set(
+      filePath,
+      window.musicMetadataSync.readEmbeddedArtwork(filePath).catch(() => "")
+    );
+  }
+
+  return embeddedArtworkCache.get(filePath);
+}
+
 function renderTrackDetailsContent(container, file) {
   const currentMetadata = file.metadata || {};
   const targetMetadata = file.fetchedMetadata || {};
+  const fetchedArtworkUrl = targetMetadata.coverArt?.embed || targetMetadata.coverArt?.original || "";
   const keySection = createMetadataSection("PRIMARY METADATA");
   const otherSection = createMetadataSection("ADDITIONAL METADATA");
   const keyRows = [
@@ -523,6 +595,76 @@ function renderTrackDetailsContent(container, file) {
   const flacTags = getSortedMetadataEntries(targetMetadata.flacTags).filter(([key]) => !isKeyMetadataTag(key));
 
   container.replaceChildren();
+
+  const artworkPreview = document.createElement("div");
+  const artwork = document.createElement("img");
+  const artworkTabs = document.createElement("div");
+  const originalArtworkTab = document.createElement("button");
+  const fetchedArtworkTab = document.createElement("button");
+  const artworkPath = file.path;
+  let embeddedArtworkUrl = "";
+
+  artworkPreview.className = "track-details-artwork-preview";
+  artwork.className = "track-details-artwork";
+  artworkTabs.className = "track-details-artwork-tabs";
+  originalArtworkTab.className = "track-details-artwork-tab";
+  originalArtworkTab.type = "button";
+  originalArtworkTab.textContent = "Original";
+  originalArtworkTab.hidden = true;
+  fetchedArtworkTab.className = "track-details-artwork-tab";
+  fetchedArtworkTab.type = "button";
+  fetchedArtworkTab.textContent = "MusicBrainz";
+  fetchedArtworkTab.hidden = !fetchedArtworkUrl;
+  artwork.alt = (targetMetadata.album || currentMetadata.album)
+    ? `${targetMetadata.album || currentMetadata.album} cover artwork`
+    : "Album cover artwork";
+  artworkPreview.hidden = !fetchedArtworkUrl;
+  artwork.addEventListener("error", () => {
+    artworkPreview.hidden = true;
+  });
+
+  if (fetchedArtworkUrl) {
+    artwork.src = fetchedArtworkUrl;
+    fetchedArtworkTab.classList.add("is-active");
+  }
+
+  originalArtworkTab.addEventListener("click", () => {
+    if (!embeddedArtworkUrl) {
+      return;
+    }
+
+    artwork.src = embeddedArtworkUrl;
+    originalArtworkTab.classList.add("is-active");
+    fetchedArtworkTab.classList.remove("is-active");
+  });
+  fetchedArtworkTab.addEventListener("click", () => {
+    if (!fetchedArtworkUrl) {
+      return;
+    }
+
+    artwork.src = fetchedArtworkUrl;
+    fetchedArtworkTab.classList.add("is-active");
+    originalArtworkTab.classList.remove("is-active");
+  });
+
+  artworkTabs.append(originalArtworkTab, fetchedArtworkTab);
+  artworkPreview.append(artwork, artworkTabs);
+  container.append(artworkPreview);
+
+  getEmbeddedArtwork(artworkPath).then((loadedEmbeddedArtworkUrl) => {
+    if (
+      loadedEmbeddedArtworkUrl &&
+      selectedTrackPath === artworkPath &&
+      artworkPreview.isConnected
+    ) {
+      embeddedArtworkUrl = loadedEmbeddedArtworkUrl;
+      artwork.src = embeddedArtworkUrl;
+      originalArtworkTab.hidden = false;
+      originalArtworkTab.classList.add("is-active");
+      fetchedArtworkTab.classList.remove("is-active");
+      artworkPreview.hidden = false;
+    }
+  });
 
   keyRows.forEach(([label, currentValue, targetValue]) => {
     keySection.append(createMetadataLine(label, currentValue, file.fetchedMetadata ? targetValue : undefined, {
@@ -600,7 +742,7 @@ function renderTrackDetailsPanel() {
   trackDetailsFileName.textContent = selectedFile.name;
   editTrackAlbumButton.disabled = !selectedAlbum?.fetchedAlbum;
   editTrackAlbumButton.onclick = selectedAlbum?.fetchedAlbum
-    ? () => openAlbumEditDialog(selectedAlbum)
+    ? () => openAlbumEditDialog(selectedAlbum, selectedFile)
     : null;
   renderTrackDetailsContent(trackDetailsContent, selectedFile);
 }
@@ -617,10 +759,17 @@ function renderFiles(options = {}) {
   }
 
   selectedFiles = selectedAlbums.flatMap((album) => album.files);
-  fileCount.textContent = `${selectedFiles.length} ${selectedFiles.length === 1 ? "file" : "files"}`;
+  albumCount.textContent = selectedAlbums.length === 0
+    ? "No album selected"
+    : `${selectedAlbums.length} ${selectedAlbums.length === 1 ? "album" : "albums"}`;
 
   applyButton.disabled = selectedAlbums.length === 0 || selectedFiles.length === 0;
   fileTableBody.replaceChildren();
+  fileTableBody.classList.toggle("is-empty", selectedFiles.length === 0);
+  fileTableBody.closest(".preview-table")?.classList.toggle(
+    "is-empty",
+    selectedFiles.length === 0
+  );
 
   if (selectedFiles.length === 0) {
     const row = document.createElement("tr");
@@ -696,19 +845,25 @@ function renderFiles(options = {}) {
       const fileNameCell = document.createElement("td");
       const currentFileName = document.createElement("strong");
       const targetFileName = document.createElement("strong");
-      const targetPreviewName = buildPreviewName(file);
-      const isFileNameChanged = normalizeComparableFileName(file.name) !==
-        normalizeComparableFileName(targetPreviewName);
+      const currentTrackName = buildTrackDisplayName(file.metadata);
+      const targetTrackName = file.fetchedMetadata
+        ? buildTrackDisplayName(file.fetchedMetadata)
+        : currentTrackName;
+      const isTrackNameChanged = currentTrackName.localeCompare(
+        targetTrackName,
+        undefined,
+        { sensitivity: "base" }
+      ) !== 0;
 
       row.className = "track-row";
       row.classList.toggle("is-selected", file.path === selectedTrackPath);
       row.tabIndex = 0;
       row.setAttribute("role", "button");
       row.setAttribute("aria-pressed", String(file.path === selectedTrackPath));
-      currentFileName.textContent = file.name;
-      targetFileName.textContent = targetPreviewName;
+      currentFileName.textContent = currentTrackName;
+      targetFileName.textContent = targetTrackName;
 
-      if (isFileNameChanged) {
+      if (isTrackNameChanged) {
         currentFileName.className = "file-name-old";
         targetFileName.className = "file-name-new";
         fileNameCell.append(currentFileName, targetFileName);
@@ -751,6 +906,7 @@ chooseFolderButton.addEventListener("click", async () => {
     const result = await window.musicMetadataSync.chooseFolder();
 
     if (result) {
+      embeddedArtworkCache.clear();
       selectedFolderPaths = result.folderPaths || [result.folderPath].filter(Boolean);
       selectedAlbums = normalizeSelectedAlbums(result, {
         defaultExpanded: false
@@ -845,38 +1001,37 @@ function applyFetchedMetadata(album, albumData) {
   });
 }
 
-function isOnlyArtistId(value, artistId) {
-  const values = (Array.isArray(value) ? value : [value]).filter(Boolean);
-
-  return Boolean(artistId) && values.length === 1 && values[0] === artistId;
-}
-
-function applyAlbumEdit(album, albumArtist, albumTitle, trackTitles) {
+function applyAlbumEdit(album, albumArtist, albumTitle, trackIndex, trackTitle, trackArtist) {
   const albumData = album.fetchedAlbum;
 
-  if (!albumData || !albumArtist || !albumTitle) {
+  if (
+    !albumData ||
+    !albumArtist ||
+    !albumTitle ||
+    !trackTitle ||
+    !trackArtist ||
+    trackIndex < 0
+  ) {
     return;
   }
 
   const updatedTracks = albumData.tracks.map((track, index) => {
-    const usesAlbumArtist = isOnlyArtistId(
-      track.flacTags?.MUSICBRAINZ_ARTISTID,
-      albumData.albumArtistId
-    );
-    const trackTitle = trackTitles[index] || track.title;
+    const isSelectedTrack = index === trackIndex;
+    const updatedTitle = isSelectedTrack ? trackTitle : track.title;
+    const updatedArtist = isSelectedTrack ? trackArtist : track.artist;
 
     return {
       ...track,
-      artist: usesAlbumArtist ? albumArtist : track.artist,
+      artist: updatedArtist,
       albumArtist,
       album: albumTitle,
-      title: trackTitle,
+      title: updatedTitle,
       flacTags: {
         ...(track.flacTags || {}),
         ALBUMARTIST: albumArtist,
         ALBUM: albumTitle,
-        TITLE: trackTitle,
-        ...(usesAlbumArtist ? { ARTIST: albumArtist } : {})
+        TITLE: updatedTitle,
+        ARTIST: updatedArtist
       }
     };
   });
@@ -893,6 +1048,7 @@ function applyAlbumEdit(album, albumArtist, albumTitle, trackTitles) {
 albumEditForm?.addEventListener("submit", (event) => {
   if (event.submitter?.value === "cancel" || !editingAlbum) {
     editingAlbum = null;
+    editingTrackIndex = -1;
     return;
   }
 
@@ -905,10 +1061,10 @@ albumEditForm?.addEventListener("submit", (event) => {
   const formData = new FormData(albumEditForm);
   const albumArtist = String(formData.get("albumArtist") || "").trim();
   const albumTitle = String(formData.get("albumTitle") || "").trim();
-  const trackTitleInputs = [...albumEditFields.querySelectorAll('[name="trackTitle"]')];
-  const trackTitles = trackTitleInputs.map((input) => input.value.trim());
+  const trackTitle = String(formData.get("trackTitle") || "").trim();
+  const trackArtist = String(formData.get("trackArtist") || "").trim();
 
-  if (!albumArtist || !albumTitle || trackTitles.some((title) => !title)) {
+  if (!albumArtist || !albumTitle || !trackTitle || !trackArtist) {
     const emptyControl = [...albumEditForm.elements].find((control) =>
       typeof control.value === "string" && !control.value.trim()
     );
@@ -917,8 +1073,16 @@ albumEditForm?.addEventListener("submit", (event) => {
     return;
   }
 
-  applyAlbumEdit(editingAlbum, albumArtist, albumTitle, trackTitles);
+  applyAlbumEdit(
+    editingAlbum,
+    albumArtist,
+    albumTitle,
+    editingTrackIndex,
+    trackTitle,
+    trackArtist
+  );
   editingAlbum = null;
+  editingTrackIndex = -1;
   albumEditDialog.close("save");
   renderFiles({
     preserveScroll: true
@@ -1060,6 +1224,7 @@ applyButton.addEventListener("click", async () => {
       folderPath: selectedFolderPaths[0] || "",
       albums: result.albums
     });
+    embeddedArtworkCache.clear();
     selectedFiles = selectedAlbums.flatMap((album) => album.files);
     fetchedAlbum = null;
     setMetadataStatus("Metadata applied.");

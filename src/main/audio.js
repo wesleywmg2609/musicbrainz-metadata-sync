@@ -92,6 +92,35 @@ async function readAudioMetadata(filePath) {
   }
 }
 
+async function readEmbeddedArtwork(filePath) {
+  try {
+    const { stdout } = await execFileAsync("ffmpeg", [
+      "-v",
+      "error",
+      "-i",
+      filePath,
+      "-map",
+      "0:v:0",
+      "-frames:v",
+      "1",
+      "-f",
+      "image2pipe",
+      "-c:v",
+      "mjpeg",
+      "pipe:1"
+    ], {
+      encoding: "buffer",
+      maxBuffer: 25 * 1024 * 1024
+    });
+
+    return stdout?.length > 0
+      ? `data:image/jpeg;base64,${stdout.toString("base64")}`
+      : "";
+  } catch {
+    return "";
+  }
+}
+
 async function walkAudioFiles(folderPath) {
   const entries = await fs.readdir(folderPath, { withFileTypes: true });
   const files = [];
@@ -135,6 +164,7 @@ function sortFilesByMetadata(files) {
 module.exports = {
   addMetadata,
   compareNullableNumbers,
+  readEmbeddedArtwork,
   sortFilesByMetadata,
   walkAudioFiles
 };
