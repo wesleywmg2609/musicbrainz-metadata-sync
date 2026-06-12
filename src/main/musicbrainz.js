@@ -335,6 +335,20 @@ function getArtistCreditName(artistCredit) {
     : "";
 }
 
+function hasArtistCreditMatch(artist, artistCredit) {
+  if (!Array.isArray(artistCredit)) {
+    return false;
+  }
+
+  const candidateNames = artistCredit.flatMap((item) => [
+    item.name,
+    item.artist?.name,
+    item.artist?.["sort-name"]
+  ]).filter(Boolean);
+
+  return candidateNames.some((candidateName) => hasArtistMatch(artist, candidateName));
+}
+
 function getArtistCreditIds(artistCredit) {
   return Array.isArray(artistCredit)
     ? artistCredit.map((item) => item.artist?.id).filter(Boolean)
@@ -451,7 +465,7 @@ function appendTags(tags, entries) {
 function scoreMusicBrainzRelease(candidate, artist, albumVariant, localTrackCount = null) {
   const wantedAlbum = normalizeSearchText(albumVariant.text);
   const candidateAlbum = normalizeSearchText(candidate.title);
-  const artistMatches = hasArtistMatch(artist, getArtistCreditName(candidate["artist-credit"]));
+  const artistMatches = hasArtistCreditMatch(artist, candidate["artist-credit"]);
   const candidateTrackCount = Number.parseInt(candidate["track-count"], 10);
   const trackCountMatches = Number.isFinite(localTrackCount) &&
     localTrackCount > 0 &&
@@ -484,7 +498,7 @@ function scoreMusicBrainzRelease(candidate, artist, albumVariant, localTrackCoun
 
   if (!artistMatches) {
     const exactTitleIsDistinctive = albumExactlyMatches &&
-      wantedAlbum.replace(/\s/g, "").length >= 8;
+      wantedAlbum.replace(/\s/g, "").length >= 12;
 
     if (!trackCountMatches || (!exactTitleIsDistinctive && shorterAlbumLength < 12)) {
       return -1;
@@ -547,7 +561,7 @@ async function searchMusicBrainzReleases(artist, album, options = {}) {
       ];
     });
   });
-  const queries = [...titleQueries, ...combinedQueries];
+  const queries = [...combinedQueries, ...titleQueries];
   const seen = new Set();
   const candidates = [];
 

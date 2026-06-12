@@ -36,21 +36,33 @@
         <h2>Preview</h2>
         <span id="fileCount">0 files</span>
       </div>
-      <div class="table-wrap">
-        <table class="preview-table">
-          <thead>
-            <tr>
-              <th>Current file</th>
-              <th>Target file</th>
-              <th class="metadata-header">Metadata</th>
-            </tr>
-          </thead>
-          <tbody id="fileTableBody">
-            <tr>
-              <td colspan="3" class="empty-state">Choose folders to preview audio files.</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="preview-content">
+        <div class="table-wrap">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th>Filename changes</th>
+              </tr>
+            </thead>
+            <tbody id="fileTableBody">
+              <tr>
+                <td class="empty-state">Choose folders to preview audio files.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <aside class="track-details-panel" aria-labelledby="trackDetailsTitle">
+          <div class="track-details-header">
+            <div class="track-details-heading">
+              <h3 id="trackDetailsTitle">Track details</h3>
+              <span id="trackDetailsFileName">No track selected</span>
+            </div>
+            <button id="editTrackAlbumButton" class="track-details-edit-button" type="button" disabled>Edit</button>
+          </div>
+          <div id="trackDetailsContent" class="track-details-content">
+            <p class="track-details-empty">Select a track to view its metadata.</p>
+          </div>
+        </aside>
       </div>
     </section>
   </main>
@@ -76,6 +88,20 @@
       </div>
       <div class="confirm-dialog-actions">
         <button id="closeErrorDialogButton" class="secondary-button" type="submit" value="close">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="albumEditDialog" class="confirm-dialog album-edit-dialog" aria-labelledby="albumEditDialogTitle">
+    <form id="albumEditForm" method="dialog" class="confirm-dialog-panel">
+      <div>
+        <h2 id="albumEditDialogTitle">Edit metadata</h2>
+        <p id="albumEditDialogDescription"></p>
+      </div>
+      <div id="albumEditFields" class="album-edit-fields"></div>
+      <div class="confirm-dialog-actions">
+        <button id="cancelAlbumEditButton" class="secondary-button" type="submit" value="cancel">Cancel</button>
+        <button class="save-button" type="submit" value="save">Save Changes</button>
       </div>
     </form>
   </dialog>
