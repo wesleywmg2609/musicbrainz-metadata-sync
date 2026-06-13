@@ -83,8 +83,10 @@ h2 {
 .app-shell {
   display: grid;
   gap: 18px;
+  grid-template-rows: max-content max-content minmax(200px, 1fr);
   margin: 0 auto;
   max-width: 1220px;
+  min-height: 100vh;
   padding: 26px;
 }
 
@@ -289,9 +291,10 @@ button:active:not(:disabled) {
 }
 
 .preview-content {
-  --preview-pane-height: max(260px, calc(100vh - 275px));
+  --preview-pane-height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  height: 100%;
   min-height: 0;
 }
 
